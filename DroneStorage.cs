@@ -137,8 +137,16 @@ namespace Oxide.Plugins
             return true;
         }
 
-        private void OnBookmarkControl(ComputerStation computerStation, BasePlayer player, string bookmarkName, Drone drone)
+        private void OnBookmarkControl(ComputerStation computerStation, BasePlayer player, string bookmarkName, IRemoteControllable entity)
         {
+            CleanupCache(computerStation);
+            UI.Destroy(player);
+
+            // TODO: Narrow hook signature after updating to use a post-hook variant of OnBookmarkControlEnd.
+            var drone = entity as Drone;
+            if (drone == null)
+                return;
+
             // Without a delay, we can't know whether another plugin blocked the entity from being controlled.
             NextTick(() =>
             {
@@ -156,6 +164,15 @@ namespace Oxide.Plugins
         {
             _controlledDrones.Remove(drone);
             UI.Destroy(player);
+        }
+
+        // TODO: Remove this when we can use a post-hook variant of OnBookmarkControlEnd.
+        private void OnEntityDismounted(ComputerStation station, BasePlayer player)
+        {
+            CleanupCache(station);
+
+            if (player != null)
+                UI.Destroy(player);
         }
 
         #endregion
@@ -422,6 +439,25 @@ namespace Oxide.Plugins
             player.inventory.loot.SendImmediate();
 
             player.ClientRPCPlayer(null, player, "RPC_OpenLootPanel", container.panelName);
+        }
+
+        // This fixes an issue where switching from a drone to a camera doesn't remove the UI.
+        // TODO: Remove this when we can use a post-hook variant of OnBookmarkControlEnd.
+        private void CleanupCache(ComputerStation station)
+        {
+            var drone = GetCachedControlledDrone(station);
+            if (drone != null)
+                _controlledDrones.Remove(drone);
+        }
+
+        private Drone GetCachedControlledDrone(ComputerStation station)
+        {
+            foreach (var entry in _controlledDrones)
+            {
+                if (entry.Value == station)
+                    return entry.Key;
+            }
+            return null;
         }
 
         private void AddOrUpdateStash(Drone drone)
