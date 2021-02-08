@@ -71,5 +71,5 @@ object OnDroneStorageSpawn(Drone drone)
 - No return behavior
 
 ```csharp
-object OnDroneStorageSpawned(Drone drone, StashContainer container)
+void OnDroneStorageSpawned(Drone drone, StashContainer container)
 ```
