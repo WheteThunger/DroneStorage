@@ -231,7 +231,7 @@ namespace Oxide.Plugins
                 return;
             }
 
-            PlayerLootContainer(basePlayer, stash);
+            stash.PlayerOpenLoot(basePlayer, stash.panelName, doPositionChecks: false);
         }
 
         #endregion
@@ -472,19 +472,6 @@ namespace Oxide.Plugins
             Effect.server.Run(StashDeployEffectPrefab, stash.transform.position);
             var dropContainer = stash.inventory.Drop(DropBagPrefab, dropPosition, stash.transform.rotation);
             Interface.Call("OnDroneStorageDropped", drone, stash, dropContainer, pilot);
-        }
-
-        private static void PlayerLootContainer(BasePlayer player, StorageContainer container)
-        {
-            player.inventory.loot.Clear();
-            player.inventory.loot.PositionChecks = false;
-            player.inventory.loot.entitySource = container;
-            player.inventory.loot.itemSource = null;
-            player.inventory.loot.MarkDirty();
-            player.inventory.loot.AddContainer(container.inventory);
-            player.inventory.loot.SendImmediate();
-
-            player.ClientRPCPlayer(null, player, "RPC_OpenLootPanel", container.panelName);
         }
 
         // This fixes an issue where switching from a drone to a camera doesn't remove the UI.
