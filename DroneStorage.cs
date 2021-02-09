@@ -411,23 +411,23 @@ namespace Oxide.Plugins
 
         private StashContainer AddStashContainer(Drone drone, int capacity)
         {
-            var container = GameManager.server.CreateEntity(StashPrefab, StashLocalPosition) as StashContainer;
-            if (container == null)
+            var stash = GameManager.server.CreateEntity(StashPrefab, StashLocalPosition) as StashContainer;
+            if (stash == null)
                 return null;
 
             // Damage will be processed by the drone.
-            container.baseProtection = null;
+            stash.baseProtection = null;
 
-            container.SetParent(drone);
-            container.Spawn();
+            stash.SetParent(drone);
+            stash.Spawn();
 
-            container.inventory.capacity = capacity;
-            container.panelName = GetSmallestPanelForCapacity(capacity);
+            stash.inventory.capacity = capacity;
+            stash.panelName = GetSmallestPanelForCapacity(capacity);
 
-            Effect.server.Run(StashDeployEffectPrefab, container.transform.position);
-            Interface.CallHook("OnDroneStorageSpawned", drone, container);
+            Effect.server.Run(StashDeployEffectPrefab, stash.transform.position);
+            Interface.CallHook("OnDroneStorageSpawned", drone, stash);
 
-            return container;
+            return stash;
         }
 
         private static string GetSmallestPanelForCapacity(int capacity)
@@ -456,22 +456,22 @@ namespace Oxide.Plugins
             UnityEngine.Object.DestroyImmediate(ent.GetComponent<GroundWatch>());
         }
 
-        private static void DropItems(Drone drone, StashContainer container, BasePlayer pilot = null)
+        private static void DropItems(Drone drone, StashContainer stash, BasePlayer pilot = null)
         {
-            var itemList = container.inventory.itemList;
-            if (itemList == null || itemList.Count <= 0 || container.dropChance == 0)
+            var itemList = stash.inventory.itemList;
+            if (itemList == null || itemList.Count <= 0 || stash.dropChance == 0)
                 return;
 
-            if (DropStorageWasBlocked(drone, container, pilot))
+            if (DropStorageWasBlocked(drone, stash, pilot))
                 return;
 
             var dropPosition = pilot == null
                 ? drone.transform.position
                 : drone.transform.TransformPoint(StashDropForwardLocation);
 
-            Effect.server.Run(StashDeployEffectPrefab, container.transform.position);
-            var dropContainer = container.inventory.Drop(DropBagPrefab, dropPosition, container.transform.rotation);
-            Interface.Call("OnDroneStorageDropped", drone, container, dropContainer, pilot);
+            Effect.server.Run(StashDeployEffectPrefab, stash.transform.position);
+            var dropContainer = stash.inventory.Drop(DropBagPrefab, dropPosition, stash.transform.rotation);
+            Interface.Call("OnDroneStorageDropped", drone, stash, dropContainer, pilot);
         }
 
         private static void PlayerLootContainer(BasePlayer player, StorageContainer container)
