@@ -294,7 +294,6 @@ namespace Oxide.Plugins
                         {
                             Text =
                             {
-                                // TODO: Localize
                                 Text = _pluginInstance.GetMessage(player.UserIDString, "UI.Button.ViewItems"),
                                 Align = TextAnchor.MiddleCenter,
                                 Color = "0 0 0 1",
