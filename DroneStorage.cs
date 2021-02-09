@@ -19,7 +19,8 @@ namespace Oxide.Plugins
 
         private static DroneStorage _pluginInstance;
 
-        private const string PermissionDrop = "dronestorage.drop";
+        private const string PermissionDropItems = "dronestorage.dropitems";
+        private const string PermissionViewItems = "dronestorage.viewitems";
         private const string PermissionCapacityPrefix = "dronestorage.capacity";
 
         private const string StashPrefab = "assets/prefabs/deployable/small stash/small_stash_deployed.prefab";
@@ -54,6 +55,9 @@ namespace Oxide.Plugins
         private void Init()
         {
             _pluginInstance = this;
+
+            permission.RegisterPermission(PermissionDropItems, this);
+            permission.RegisterPermission(PermissionViewItems, this);
 
             foreach (var capacityAmount in _pluginConfig.CapacityAmountsRequiringPermission)
                 permission.RegisterPermission(GetCapacityPermission(capacityAmount), this);
@@ -195,6 +199,9 @@ namespace Oxide.Plugins
             if (stash == null)
                 return;
 
+            if (!player.HasPermission(PermissionDropItems))
+                return;
+
             DropItems(drone, stash, inFront: true);
         }
 
@@ -212,6 +219,9 @@ namespace Oxide.Plugins
 
             var stash = GetChildStash(drone);
             if (stash == null)
+                return;
+
+            if (!player.HasPermission(PermissionViewItems))
                 return;
 
             PlayerLootContainer(basePlayer, stash);
@@ -232,6 +242,13 @@ namespace Oxide.Plugins
             private const int NumButtons = 2;
 
             private const int OffsetTop = 74;
+
+            private static float GetButtonOffsetX(int index, int totalButtons)
+            {
+                var panelWidth = ButtonWidth * totalButtons + ButtonSpacing * (totalButtons - 1);
+                var offsetXMin = -panelWidth / 2 + (ButtonWidth + ButtonSpacing) * index;
+                return offsetXMin;
+            }
 
             public static void Create(BasePlayer player)
             {
@@ -255,58 +272,73 @@ namespace Oxide.Plugins
                     }
                 };
 
-                cuiElements.Add(
-                    new CuiButton
-                    {
-                        Text =
-                        {
-                            // TODO: Localize
-                            Text = _pluginInstance.GetMessage(player.UserIDString, "UI.Button.ViewItems"),
-                            Align = TextAnchor.MiddleCenter,
-                            Color = "0 0 0 1",
-                            FontSize = 12
-                        },
-                        Button =
-                        {
-                            Color = "0 1 0 1",
-                            Command = "dronestorage.ui.viewitems",
-                        },
-                        RectTransform =
-                        {
-                            AnchorMin = "0 0",
-                            AnchorMax = "0 0",
-                            OffsetMin = $"{-ButtonWidth - ButtonSpacing / 2} 0",
-                            OffsetMax = $"{-ButtonSpacing / 2} {ButtonHeight}"
-                        }
-                    },
-                    Name
-                );
+                var iPlayer = player.IPlayer;
+                var showViewItemsButton = iPlayer.HasPermission(PermissionViewItems);
+                var showDropItemsButton = iPlayer.HasPermission(PermissionDropItems);
 
-                cuiElements.Add(
-                    new CuiButton
-                    {
-                        Text =
+                var totalButtons = Convert.ToInt32(showViewItemsButton) + Convert.ToInt32(showDropItemsButton);
+                var currentButtonIndex = 0;
+
+                if (showViewItemsButton)
+                {
+                    var offsetXMin = GetButtonOffsetX(currentButtonIndex++, totalButtons);
+                    cuiElements.Add(
+                        new CuiButton
                         {
-                            Text = _pluginInstance.GetMessage(player.UserIDString, "UI.Button.DropItems"),
-                            Align = TextAnchor.MiddleCenter,
-                            Color = "0 0 0 1",
-                            FontSize = 12
+                            Text =
+                            {
+                                // TODO: Localize
+                                Text = _pluginInstance.GetMessage(player.UserIDString, "UI.Button.ViewItems"),
+                                Align = TextAnchor.MiddleCenter,
+                                Color = "0 0 0 1",
+                                FontSize = 12
+                            },
+                            Button =
+                            {
+                                Color = "0 1 0 1",
+                                Command = "dronestorage.ui.viewitems",
+                            },
+                            RectTransform =
+                            {
+                                AnchorMin = "0 0",
+                                AnchorMax = "0 0",
+                                OffsetMin = $"{offsetXMin} 0",
+                                OffsetMax = $"{offsetXMin + ButtonWidth} {ButtonHeight}"
+                            }
                         },
-                        Button =
+                        Name
+                    );
+                }
+
+                if (showDropItemsButton)
+                {
+                    var offsetXMin = GetButtonOffsetX(currentButtonIndex++, totalButtons);
+                    cuiElements.Add(
+                        new CuiButton
                         {
-                            Color = "1 0 0 1",
-                            Command = "dronestorage.ui.dropitems",
+                            Text =
+                            {
+                                Text = _pluginInstance.GetMessage(player.UserIDString, "UI.Button.DropItems"),
+                                Align = TextAnchor.MiddleCenter,
+                                Color = "0 0 0 1",
+                                FontSize = 12
+                            },
+                            Button =
+                            {
+                                Color = "1 0 0 1",
+                                Command = "dronestorage.ui.dropitems",
+                            },
+                            RectTransform =
+                            {
+                                AnchorMin = "0 0",
+                                AnchorMax = "0 0",
+                                OffsetMin = $"{offsetXMin} 0",
+                                OffsetMax = $"{offsetXMin + ButtonWidth} {ButtonHeight}"
+                            }
                         },
-                        RectTransform =
-                        {
-                            AnchorMin = "0 0",
-                            AnchorMax = "0 0",
-                            OffsetMin = $"{ButtonSpacing / 2} 0",
-                            OffsetMax = $"{ButtonSpacing / 2 + ButtonWidth} {ButtonHeight}"
-                        }
-                    },
-                    Name
-                );
+                        Name
+                    );
+                }
 
                 CuiHelper.AddUi(player, cuiElements);
             }
