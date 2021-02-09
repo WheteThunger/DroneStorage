@@ -46,6 +46,9 @@ namespace Oxide.Plugins
 
         private readonly Dictionary<Drone, ComputerStation> _controlledDrones = new Dictionary<Drone, ComputerStation>();
 
+        // TODO: Remove this when we can use a post-hook variant of OnBookmarkControlEnd.
+        private readonly HashSet<BasePlayer> _droneStashLooters = new HashSet<BasePlayer>();
+
         private Configuration _pluginConfig;
 
         #endregion
@@ -173,11 +176,16 @@ namespace Oxide.Plugins
         // TODO: Remove this when we can use a post-hook variant of OnBookmarkControlEnd.
         private void OnEntityDismounted(ComputerStation station, BasePlayer player)
         {
+            DisconnectLooter(player);
             CleanupCache(station);
 
             if (player != null)
                 UI.Destroy(player);
         }
+
+        // TODO: Remove this when we can use a post-hook variant of OnBookmarkControlEnd.
+        private void OnLootEntityEnd(BasePlayer player, StashContainer stash) =>
+            _droneStashLooters.Remove(player);
 
         #endregion
 
@@ -232,6 +240,7 @@ namespace Oxide.Plugins
             }
 
             stash.PlayerOpenLoot(basePlayer, stash.panelName, doPositionChecks: false);
+            _droneStashLooters.Add(basePlayer);
         }
 
         #endregion
@@ -472,6 +481,13 @@ namespace Oxide.Plugins
             Effect.server.Run(StashDeployEffectPrefab, stash.transform.position);
             var dropContainer = stash.inventory.Drop(DropBagPrefab, dropPosition, stash.transform.rotation);
             Interface.Call("OnDroneStorageDropped", drone, stash, dropContainer, pilot);
+        }
+
+        // TODO: Remove this when we can use a post-hook variant of OnBookmarkControlEnd.
+        private void DisconnectLooter(BasePlayer player)
+        {
+            if (_droneStashLooters.Contains(player))
+                player.inventory.loot.Clear();
         }
 
         // This fixes an issue where switching from a drone to a camera doesn't remove the UI.
