@@ -224,6 +224,13 @@ namespace Oxide.Plugins
             if (!player.HasPermission(PermissionViewItems))
                 return;
 
+            if (basePlayer.inventory.loot.IsLooting() && basePlayer.inventory.loot.entitySource == stash)
+            {
+                // HACK: Send empty respawn information to fully close the player inventory (close the storage)
+                basePlayer.ClientRPCPlayer(null, basePlayer, "OnRespawnInformation");
+                return;
+            }
+
             PlayerLootContainer(basePlayer, stash);
         }
 
