@@ -202,7 +202,7 @@ namespace Oxide.Plugins
             if (!player.HasPermission(PermissionDropItems))
                 return;
 
-            DropItems(drone, stash, inFront: true);
+            DropItems(drone, stash, basePlayer);
         }
 
         [Command("dronestorage.ui.viewitems")]
@@ -371,6 +371,12 @@ namespace Oxide.Plugins
             return hookResult is bool && (bool)hookResult == false;
         }
 
+        private static bool DropStorageWasBlocked(Drone drone, StashContainer stash, BasePlayer pilot)
+        {
+            object hookResult = Interface.CallHook("OnDroneStorageDrop", drone, stash, pilot);
+            return hookResult is bool && (bool)hookResult == false;
+        }
+
         private static string GetCapacityPermission(int capacity) =>
             $"{PermissionCapacityPrefix}.{capacity}";
 
@@ -450,20 +456,22 @@ namespace Oxide.Plugins
             UnityEngine.Object.DestroyImmediate(ent.GetComponent<GroundWatch>());
         }
 
-        private static void DropItems(Drone drone, StashContainer container, bool inFront = false)
+        private static void DropItems(Drone drone, StashContainer container, BasePlayer pilot = null)
         {
-            if (container.inventory.itemList.Count > 1)
-                Effect.server.Run(StashDeployEffectPrefab, container.transform.position);
-
             var itemList = container.inventory.itemList;
             if (itemList == null || itemList.Count <= 0 || container.dropChance == 0)
                 return;
 
-            var dropPosition = inFront
-                ? drone.transform.TransformPoint(StashDropForwardLocation)
-                : drone.transform.position;
+            if (DropStorageWasBlocked(drone, container, pilot))
+                return;
 
-            container.inventory.Drop(DropBagPrefab, dropPosition, container.transform.rotation);
+            var dropPosition = pilot == null
+                ? drone.transform.position
+                : drone.transform.TransformPoint(StashDropForwardLocation);
+
+            Effect.server.Run(StashDeployEffectPrefab, container.transform.position);
+            var dropContainer = container.inventory.Drop(DropBagPrefab, dropPosition, container.transform.rotation);
+            Interface.Call("OnDroneStorageDropped", drone, container, dropContainer, pilot);
         }
 
         private static void PlayerLootContainer(BasePlayer player, StorageContainer container)
