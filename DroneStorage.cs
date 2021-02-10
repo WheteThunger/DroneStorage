@@ -251,13 +251,18 @@ namespace Oxide.Plugins
         {
             private const string Name = "DroneStorage";
 
-            private const int ButtonWidth = 65;
-            private const int ButtonHeight = 22;
+            private const int ButtonWidth = 85;
+            private const int ButtonHeight = 26;
+            private const int ButtonTextSize = 12;
 
-            private const int ButtonSpacing = 10;
+            private const int ButtonSpacing = 30;
             private const int NumButtons = 2;
 
-            private const int OffsetTop = 74;
+            private const int OffsetTop = 75;
+
+            private const string ViewItemsButtonColor = "0.44 0.54 0.26 1";
+            private const string DropItemsButtonColor = "0.77 0.24 0.16 1";
+            private const string ButtonTextColor = "0.97 0.92 0.88 1";
 
             private static float GetButtonOffsetX(int index, int totalButtons)
             {
@@ -280,7 +285,7 @@ namespace Oxide.Plugins
                                 AnchorMin = "0.5 1",
                                 AnchorMax = "0.5 1",
                                 OffsetMin = $"0 {-OffsetTop - ButtonHeight}",
-                                OffsetMax = $"0 {-OffsetTop}"
+                                OffsetMax = $"0 {-OffsetTop - ButtonHeight}"
                             }
                         },
                         "Overlay",
@@ -305,12 +310,12 @@ namespace Oxide.Plugins
                             {
                                 Text = _pluginInstance.GetMessage(player.UserIDString, "UI.Button.ViewItems"),
                                 Align = TextAnchor.MiddleCenter,
-                                Color = "0 0 0 1",
-                                FontSize = 12
+                                Color = ButtonTextColor,
+                                FontSize = ButtonTextSize
                             },
                             Button =
                             {
-                                Color = "0 1 0 1",
+                                Color = ViewItemsButtonColor,
                                 Command = "dronestorage.ui.viewitems",
                             },
                             RectTransform =
@@ -335,12 +340,12 @@ namespace Oxide.Plugins
                             {
                                 Text = _pluginInstance.GetMessage(player.UserIDString, "UI.Button.DropItems"),
                                 Align = TextAnchor.MiddleCenter,
-                                Color = "0 0 0 1",
-                                FontSize = 12
+                                Color = ButtonTextColor,
+                                FontSize = ButtonTextSize
                             },
                             Button =
                             {
-                                Color = "1 0 0 1",
+                                Color = DropItemsButtonColor,
                                 Command = "dronestorage.ui.dropitems",
                             },
                             RectTransform =
