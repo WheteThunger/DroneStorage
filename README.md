@@ -71,7 +71,7 @@ object OnDroneStorageSpawn(Drone drone)
 - No return behavior
 
 ```csharp
-void OnDroneStorageSpawned(Drone drone, StashContainer stash)
+void OnDroneStorageSpawned(Drone drone, StorageContainer stash)
 ```
 
 #### OnDroneStorageDrop
@@ -81,7 +81,7 @@ void OnDroneStorageSpawned(Drone drone, StashContainer stash)
 - Returning `null` will result in the default behavior
 
 ```csharp
-object OnDroneStorageDrop(Drone drone, StashContainer stash, BasePlayer optionalPilot)
+object OnDroneStorageDrop(Drone drone, StorageContainer stash, BasePlayer optionalPilot)
 ```
 
 Note: The `BasePlayer` argument will be `null` if the container is being dropped because the drone was destroyed instead of an intentional drop.
@@ -92,7 +92,7 @@ Note: The `BasePlayer` argument will be `null` if the container is being dropped
 - No return behavior
 
 ```csharp
-void OnDroneStorageDropped(Drone drone, StashContainer stash, DroppedItemContainer dropContainer, BasePlayer optionalPilot)
+void OnDroneStorageDropped(Drone drone, StorageContainer stash, DroppedItemContainer dropContainer, BasePlayer optionalPilot)
 ```
 
 Note: The `BasePlayer` argument will be `null` if the container is being dropped because the drone was destroyed instead of an intentional drop.

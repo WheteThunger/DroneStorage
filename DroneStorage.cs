@@ -23,9 +23,9 @@ namespace Oxide.Plugins
         private const string PermissionViewItems = "dronestorage.viewitems";
         private const string PermissionCapacityPrefix = "dronestorage.capacity";
 
-        private const string StashPrefab = "assets/prefabs/deployable/small stash/small_stash_deployed.prefab";
-        private const string AutoTurretPrefab = "assets/prefabs/npc/autoturret/autoturret_deployed.prefab";
-        private const string StashDeployEffectPrefab = "assets/prefabs/deployable/small stash/effects/small-stash-deploy.prefab";
+        // HAB storage is the best since it has an accurate collider, decent rendering distance and is a StorageContainer.
+        private const string ContainerPrefab = "assets/prefabs/deployable/hot air balloon/subents/hab_storage.prefab";
+        private const string StorageDeployEffectPrefab = "assets/prefabs/deployable/small stash/effects/small-stash-deploy.prefab";
         private const string DropBagPrefab = "assets/prefabs/misc/item drop/item_drop.prefab";
 
         private const string MaximumCapacityPanelName = "genericlarge";
@@ -41,13 +41,14 @@ namespace Oxide.Plugins
             [MaximumCapacityPanelName] = MaximumCapacity,
         };
 
-        private static readonly Vector3 StashLocalPosition = new Vector3(0, 0.24f, 0);
-        private static readonly Vector3 StashDropForwardLocation = new Vector3(0, 0, 0.7f);
+        private static readonly Vector3 StorageLocalPosition = new Vector3(0, 0.12f, 0);
+        private static readonly Quaternion StorageLocalRotation = Quaternion.Euler(-90, 0, 0);
+        private static readonly Vector3 StorageDropForwardLocation = new Vector3(0, 0, 0.7f);
 
         private readonly Dictionary<Drone, ComputerStation> _controlledDrones = new Dictionary<Drone, ComputerStation>();
 
         // TODO: Remove this when we can use a post-hook variant of OnBookmarkControlEnd.
-        private readonly HashSet<BasePlayer> _droneStashLooters = new HashSet<BasePlayer>();
+        private readonly HashSet<BasePlayer> _droneStorageLooters = new HashSet<BasePlayer>();
 
         private Configuration _pluginConfig;
 
@@ -83,7 +84,7 @@ namespace Oxide.Plugins
                 if (drone == null || drone is DeliveryDrone)
                     continue;
 
-                AddOrUpdateStash(drone);
+                AddOrUpdateStorage(drone);
             }
 
             Subscribe(nameof(OnEntitySpawned));
@@ -94,7 +95,7 @@ namespace Oxide.Plugins
             if (drone is DeliveryDrone)
                 return;
 
-            TrySpawnStash(drone);
+            TrySpawnStorage(drone);
         }
 
         private void OnEntityDeath(Drone drone)
@@ -102,9 +103,9 @@ namespace Oxide.Plugins
             if (drone is DeliveryDrone)
                 return;
 
-            var stash = GetChildOfType<StashContainer>(drone);
-            if (stash != null)
-                DropItems(drone, stash);
+            var storage = GetChildOfType<StorageContainer>(drone);
+            if (storage != null)
+                DropItems(drone, storage);
         }
 
         private void OnEntityKill(Drone drone)
@@ -124,17 +125,9 @@ namespace Oxide.Plugins
             UI.Destroy(controllerPlayer);
         }
 
-        private object CanHideStash(BasePlayer player, StashContainer stash)
+        private object OnEntityTakeDamage(StorageContainer storage, HitInfo info)
         {
-            if (GetParentDrone(stash) != null)
-                return false;
-
-            return null;
-        }
-
-        private object OnEntityTakeDamage(StashContainer stash, HitInfo info)
-        {
-            var drone = GetParentDrone(stash);
+            var drone = GetParentDrone(storage);
             if (drone == null)
                 return null;
 
@@ -184,8 +177,8 @@ namespace Oxide.Plugins
         }
 
         // TODO: Remove this when we can use a post-hook variant of OnBookmarkControlEnd.
-        private void OnLootEntityEnd(BasePlayer player, StashContainer stash) =>
-            _droneStashLooters.Remove(player);
+        private void OnLootEntityEnd(BasePlayer player, StorageContainer storage) =>
+            _droneStorageLooters.Remove(player);
 
         #endregion
 
@@ -203,14 +196,14 @@ namespace Oxide.Plugins
             if (drone == null)
                 return;
 
-            var stash = GetChildStash(drone);
-            if (stash == null)
+            var storage = GetChildStorage(drone);
+            if (storage == null)
                 return;
 
             if (!player.HasPermission(PermissionDropItems))
                 return;
 
-            DropItems(drone, stash, basePlayer);
+            DropItems(drone, storage, basePlayer);
         }
 
         [Command("dronestorage.ui.viewitems")]
@@ -225,22 +218,22 @@ namespace Oxide.Plugins
             if (drone == null)
                 return;
 
-            var stash = GetChildStash(drone);
-            if (stash == null)
+            var storage = GetChildStorage(drone);
+            if (storage == null)
                 return;
 
             if (!player.HasPermission(PermissionViewItems))
                 return;
 
-            if (basePlayer.inventory.loot.IsLooting() && basePlayer.inventory.loot.entitySource == stash)
+            if (basePlayer.inventory.loot.IsLooting() && basePlayer.inventory.loot.entitySource == storage)
             {
                 // HACK: Send empty respawn information to fully close the player inventory (close the storage)
                 basePlayer.ClientRPCPlayer(null, basePlayer, "OnRespawnInformation");
                 return;
             }
 
-            stash.PlayerOpenLoot(basePlayer, stash.panelName, doPositionChecks: false);
-            _droneStashLooters.Add(basePlayer);
+            storage.PlayerOpenLoot(basePlayer, storage.panelName, doPositionChecks: false);
+            _droneStorageLooters.Add(basePlayer);
         }
 
         #endregion
@@ -385,9 +378,9 @@ namespace Oxide.Plugins
             return hookResult is bool && (bool)hookResult == false;
         }
 
-        private static bool DropStorageWasBlocked(Drone drone, StashContainer stash, BasePlayer pilot)
+        private static bool DropStorageWasBlocked(Drone drone, StorageContainer storage, BasePlayer pilot)
         {
-            object hookResult = Interface.CallHook("OnDroneStorageDrop", drone, stash, pilot);
+            object hookResult = Interface.CallHook("OnDroneStorageDrop", drone, storage, pilot);
             return hookResult is bool && (bool)hookResult == false;
         }
 
@@ -400,8 +393,8 @@ namespace Oxide.Plugins
         private static Drone GetControlledDrone(ComputerStation computerStation) =>
             computerStation.currentlyControllingEnt.Get(serverside: true) as Drone;
 
-        private static StashContainer GetChildStash(Drone drone) =>
-            GetChildOfType<StashContainer>(drone);
+        private static StorageContainer GetChildStorage(Drone drone) =>
+            GetChildOfType<StorageContainer>(drone);
 
         private static T GetChildOfType<T>(BaseEntity entity) where T : BaseEntity
         {
@@ -423,25 +416,25 @@ namespace Oxide.Plugins
             entity.ClientRPCPlayer(null, player, "HitNotify");
         }
 
-        private StashContainer AddStashContainer(Drone drone, int capacity)
+        private StorageContainer AddDroneStorage(Drone drone, int capacity)
         {
-            var stash = GameManager.server.CreateEntity(StashPrefab, StashLocalPosition) as StashContainer;
-            if (stash == null)
+            var storage = GameManager.server.CreateEntity(ContainerPrefab, StorageLocalPosition, StorageLocalRotation) as StorageContainer;
+            if (storage == null)
                 return null;
 
             // Damage will be processed by the drone.
-            stash.baseProtection = null;
+            storage.baseProtection = null;
 
-            stash.SetParent(drone);
-            stash.Spawn();
+            storage.SetParent(drone);
+            storage.Spawn();
 
-            stash.inventory.capacity = capacity;
-            stash.panelName = GetSmallestPanelForCapacity(capacity);
+            storage.inventory.capacity = capacity;
+            storage.panelName = GetSmallestPanelForCapacity(capacity);
 
-            Effect.server.Run(StashDeployEffectPrefab, stash.transform.position);
-            Interface.CallHook("OnDroneStorageSpawned", drone, stash);
+            Effect.server.Run(StorageDeployEffectPrefab, storage.transform.position);
+            Interface.CallHook("OnDroneStorageSpawned", drone, storage);
 
-            return stash;
+            return storage;
         }
 
         private static string GetSmallestPanelForCapacity(int capacity)
@@ -470,28 +463,28 @@ namespace Oxide.Plugins
             UnityEngine.Object.DestroyImmediate(ent.GetComponent<GroundWatch>());
         }
 
-        private static void DropItems(Drone drone, StashContainer stash, BasePlayer pilot = null)
+        private static void DropItems(Drone drone, StorageContainer storage, BasePlayer pilot = null)
         {
-            var itemList = stash.inventory.itemList;
-            if (itemList == null || itemList.Count <= 0 || stash.dropChance == 0)
+            var itemList = storage.inventory.itemList;
+            if (itemList == null || itemList.Count <= 0)
                 return;
 
-            if (DropStorageWasBlocked(drone, stash, pilot))
+            if (DropStorageWasBlocked(drone, storage, pilot))
                 return;
 
             var dropPosition = pilot == null
                 ? drone.transform.position
-                : drone.transform.TransformPoint(StashDropForwardLocation);
+                : drone.transform.TransformPoint(StorageDropForwardLocation);
 
-            Effect.server.Run(StashDeployEffectPrefab, stash.transform.position);
-            var dropContainer = stash.inventory.Drop(DropBagPrefab, dropPosition, stash.transform.rotation);
-            Interface.Call("OnDroneStorageDropped", drone, stash, dropContainer, pilot);
+            Effect.server.Run(StorageDeployEffectPrefab, storage.transform.position);
+            var dropContainer = storage.inventory.Drop(DropBagPrefab, dropPosition, storage.transform.rotation);
+            Interface.Call("OnDroneStorageDropped", drone, storage, dropContainer, pilot);
         }
 
         // TODO: Remove this when we can use a post-hook variant of OnBookmarkControlEnd.
         private void DisconnectLooter(BasePlayer player)
         {
-            if (_droneStashLooters.Contains(player))
+            if (_droneStorageLooters.Contains(player))
                 player.inventory.loot.Clear();
         }
 
@@ -514,20 +507,20 @@ namespace Oxide.Plugins
             return null;
         }
 
-        private void AddOrUpdateStash(Drone drone)
+        private void AddOrUpdateStorage(Drone drone)
         {
-            var stash = GetChildStash(drone);
-            if (stash != null)
+            var storage = GetChildStorage(drone);
+            if (storage != null)
             {
                 // Possibly increase capacity, but do not decrease it as it could hide items.
-                stash.inventory.capacity = Math.Max(stash.inventory.capacity, GetPlayerAllowedCapacity(drone.OwnerID));
-                stash.panelName = GetSmallestPanelForCapacity(stash.inventory.capacity);
+                storage.inventory.capacity = Math.Max(storage.inventory.capacity, GetPlayerAllowedCapacity(drone.OwnerID));
+                storage.panelName = GetSmallestPanelForCapacity(storage.inventory.capacity);
                 return;
             }
-            TrySpawnStash(drone);
+            TrySpawnStorage(drone);
         }
 
-        private void TrySpawnStash(Drone drone)
+        private void TrySpawnStorage(Drone drone)
         {
             var capacity = GetPlayerAllowedCapacity(drone.OwnerID);
             if (capacity <= 0)
@@ -536,7 +529,7 @@ namespace Oxide.Plugins
             if (SpawnStorageWasBlocked(drone))
                 return;
 
-            AddStashContainer(drone, capacity);
+            AddDroneStorage(drone, capacity);
         }
 
         #endregion
