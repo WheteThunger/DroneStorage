@@ -81,7 +81,7 @@ namespace Oxide.Plugins
             foreach (var entity in BaseNetworkable.serverEntities)
             {
                 var drone = entity as Drone;
-                if (drone == null || drone is DeliveryDrone)
+                if (drone == null || !IsDroneEligible(drone))
                     continue;
 
                 AddOrUpdateStorage(drone);
@@ -92,7 +92,7 @@ namespace Oxide.Plugins
 
         private void OnEntitySpawned(Drone drone)
         {
-            if (drone is DeliveryDrone)
+            if (!IsDroneEligible(drone))
                 return;
 
             TrySpawnStorage(drone);
@@ -100,7 +100,7 @@ namespace Oxide.Plugins
 
         private void OnEntityDeath(Drone drone)
         {
-            if (drone is DeliveryDrone)
+            if (!IsDroneEligible(drone))
                 return;
 
             var storage = GetChildOfType<StorageContainer>(drone);
@@ -110,7 +110,7 @@ namespace Oxide.Plugins
 
         private void OnEntityKill(Drone drone)
         {
-            if (drone is DeliveryDrone)
+            if (!IsDroneEligible(drone))
                 return;
 
             ComputerStation computerStation;
@@ -179,6 +179,22 @@ namespace Oxide.Plugins
         // TODO: Remove this when we can use a post-hook variant of OnBookmarkControlEnd.
         private void OnLootEntityEnd(BasePlayer player, StorageContainer storage) =>
             _droneStorageLooters.Remove(player);
+
+        private object CanPickupEntity(BasePlayer player, Drone drone)
+        {
+            if (!IsDroneEligible(drone))
+                return null;
+
+            var storage = GetChildStorage(drone);
+            if (storage == null)
+                return null;
+
+            // Prevent drone pickup while the storage is not empty.
+            if (!storage.inventory.IsEmpty())
+                return false;
+
+            return null;
+        }
 
         #endregion
 
@@ -386,6 +402,9 @@ namespace Oxide.Plugins
 
         private static string GetCapacityPermission(int capacity) =>
             $"{PermissionCapacityPrefix}.{capacity}";
+
+        private static bool IsDroneEligible(Drone drone) =>
+            !(drone is DeliveryDrone);
 
         private static Drone GetParentDrone(BaseEntity entity) =>
             entity.GetParentEntity() as Drone;
