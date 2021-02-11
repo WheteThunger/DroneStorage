@@ -59,12 +59,30 @@ Default configuration:
     30,
     36,
     42
-  ]
+  ],
+  "UISettings": {
+    "AnchorMin": "0.5 1",
+    "AnchorMax": "0.5 1",
+    "OffsetMin": "0 -75",
+    "OffsetMax": "0 -75",
+    "Buttons": {
+      "Spacing": 25,
+      "Width": 85,
+      "Height": 26,
+      "TextSize": 13,
+      "ViewButtonColor": "0.44 0.54 0.26 1",
+      "ViewButtonTextColor": "0.97 0.92 0.88 1",
+      "DropButtonColor": "0.77 0.24 0.16 1",
+      "DropButtonTextColor": "0.97 0.92 0.88 1"
+    }
+  }
 }
 ```
 
 - `TipChance` (`0` - `100`) -- Chance that a tip message will be shown to a player when they deploy a drone, informing them that they can use the `/dronestash` command. Only applies to players with the `dronestorage.deploy` permission who do not have the `dronestorage.autodeploy` permission.
 - `CapacityAmountsRequiringPermission` -- List of numbers used to generate permissions of the format `dronestorage.capacity.<amount>` (see permissions section).
+- `UISettings` -- Options to control the display of the UI.
+  - Note: It is not possible to position the UI relative to the computer station UI consistently because modded UIs use scaling whereas the computer station UI uses the same fixed pixel offsets for all resolutions.
 
 ## Localization
 

@@ -18,6 +18,7 @@ namespace Oxide.Plugins
         #region Fields
 
         private static DroneStorage _pluginInstance;
+        private static Configuration _pluginConfig;
 
         private const string PermissionDeploy = "dronestorage.deploy";
         private const string PermissionDeployFree = "dronestorage.deploy.free";
@@ -56,8 +57,6 @@ namespace Oxide.Plugins
 
         // TODO: Remove this when we can use a post-hook variant of OnBookmarkControlEnd.
         private readonly HashSet<BasePlayer> _droneStorageLooters = new HashSet<BasePlayer>();
-
-        private Configuration _pluginConfig;
 
         #endregion
 
@@ -344,23 +343,13 @@ namespace Oxide.Plugins
         {
             private const string Name = "DroneStorage";
 
-            private const int ButtonWidth = 85;
-            private const int ButtonHeight = 26;
-            private const int ButtonTextSize = 12;
-
-            private const int ButtonSpacing = 30;
-            private const int NumButtons = 2;
-
-            private const int OffsetTop = 75;
-
-            private const string ViewItemsButtonColor = "0.44 0.54 0.26 1";
-            private const string DropItemsButtonColor = "0.77 0.24 0.16 1";
-            private const string ButtonTextColor = "0.97 0.92 0.88 1";
+            private static UISettings _uiSettings => _pluginConfig.UISettings;
+            private static UIButtons _buttonSettings => _uiSettings.Buttons;
 
             private static float GetButtonOffsetX(int index, int totalButtons)
             {
-                var panelWidth = ButtonWidth * totalButtons + ButtonSpacing * (totalButtons - 1);
-                var offsetXMin = -panelWidth / 2 + (ButtonWidth + ButtonSpacing) * index;
+                var panelWidth = _buttonSettings.Width * totalButtons + _buttonSettings.Spacing * (totalButtons - 1);
+                var offsetXMin = -panelWidth / 2 + (_buttonSettings.Width + _buttonSettings.Spacing) * index;
                 return offsetXMin;
             }
 
@@ -375,10 +364,10 @@ namespace Oxide.Plugins
                             {
                                 // The computer station UI is inconsistent across resolutions.
                                 // Positioning relative to top center for best approximate fit.
-                                AnchorMin = "0.5 1",
-                                AnchorMax = "0.5 1",
-                                OffsetMin = $"0 {-OffsetTop - ButtonHeight}",
-                                OffsetMax = $"0 {-OffsetTop - ButtonHeight}"
+                                AnchorMin = _pluginConfig.UISettings.AnchorMin,
+                                AnchorMax = _pluginConfig.UISettings.AnchorMax,
+                                OffsetMin = _pluginConfig.UISettings.OffsetMin,
+                                OffsetMax = _pluginConfig.UISettings.OffsetMax
                             }
                         },
                         "Overlay",
@@ -403,12 +392,12 @@ namespace Oxide.Plugins
                             {
                                 Text = _pluginInstance.GetMessage(player.UserIDString, "UI.Button.ViewItems"),
                                 Align = TextAnchor.MiddleCenter,
-                                Color = ButtonTextColor,
-                                FontSize = ButtonTextSize
+                                Color = _buttonSettings.ViewButtonTextColor,
+                                FontSize = _buttonSettings.TextSize
                             },
                             Button =
                             {
-                                Color = ViewItemsButtonColor,
+                                Color = _buttonSettings.ViewButtonColor,
                                 Command = "dronestorage.ui.viewitems",
                             },
                             RectTransform =
@@ -416,7 +405,7 @@ namespace Oxide.Plugins
                                 AnchorMin = "0 0",
                                 AnchorMax = "0 0",
                                 OffsetMin = $"{offsetXMin} 0",
-                                OffsetMax = $"{offsetXMin + ButtonWidth} {ButtonHeight}"
+                                OffsetMax = $"{offsetXMin + _buttonSettings.Width} {_buttonSettings.Height}"
                             }
                         },
                         Name
@@ -433,12 +422,12 @@ namespace Oxide.Plugins
                             {
                                 Text = _pluginInstance.GetMessage(player.UserIDString, "UI.Button.DropItems"),
                                 Align = TextAnchor.MiddleCenter,
-                                Color = ButtonTextColor,
-                                FontSize = ButtonTextSize
+                                Color = _buttonSettings.DropButtonTextColor,
+                                FontSize = _buttonSettings.TextSize
                             },
                             Button =
                             {
-                                Color = DropItemsButtonColor,
+                                Color = _buttonSettings.DropButtonColor,
                                 Command = "dronestorage.ui.dropitems",
                             },
                             RectTransform =
@@ -446,7 +435,7 @@ namespace Oxide.Plugins
                                 AnchorMin = "0 0",
                                 AnchorMax = "0 0",
                                 OffsetMin = $"{offsetXMin} 0",
-                                OffsetMax = $"{offsetXMin + ButtonWidth} {ButtonHeight}"
+                                OffsetMax = $"{offsetXMin + _buttonSettings.Width} {_buttonSettings.Height}"
                             }
                         },
                         Name
@@ -677,6 +666,54 @@ namespace Oxide.Plugins
 
             [JsonProperty("CapacityAmountsRequiringPermission")]
             public int[] CapacityAmountsRequiringPermission = new int[] { 6, 12, 18, 24, 30, 36, 42 };
+
+            [JsonProperty("UISettings")]
+            public UISettings UISettings = new UISettings();
+        }
+
+        private class UISettings
+        {
+            [JsonProperty("AnchorMin")]
+            public string AnchorMin = "0.5 1";
+
+            [JsonProperty("AnchorMax")]
+            public string AnchorMax = "0.5 1";
+
+            [JsonProperty("OffsetMin")]
+            public string OffsetMin = "0 -75";
+
+            [JsonProperty("OffsetMax")]
+            public string OffsetMax = "0 -75";
+
+            [JsonProperty("Buttons")]
+            public UIButtons Buttons = new UIButtons();
+        }
+
+        private class UIButtons
+        {
+            [JsonProperty("Spacing")]
+            public int Spacing = 25;
+
+            [JsonProperty("Width")]
+            public int Width = 85;
+
+            [JsonProperty("Height")]
+            public int Height = 26;
+
+            [JsonProperty("TextSize")]
+            public int TextSize = 13;
+
+            [JsonProperty("ViewButtonColor")]
+            public string ViewButtonColor = "0.44 0.54 0.26 1";
+
+            [JsonProperty("ViewButtonTextColor")]
+            public string ViewButtonTextColor = "0.97 0.92 0.88 1";
+
+            [JsonProperty("DropButtonColor")]
+            public string DropButtonColor = "0.77 0.24 0.16 1";
+
+            [JsonProperty("DropButtonTextColor")]
+            public string DropButtonTextColor = "0.97 0.92 0.88 1";
         }
 
         private Configuration GetDefaultConfig() => new Configuration();
