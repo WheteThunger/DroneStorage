@@ -43,7 +43,9 @@ namespace Oxide.Plugins
 
         private static readonly Vector3 StorageLocalPosition = new Vector3(0, 0.12f, 0);
         private static readonly Quaternion StorageLocalRotation = Quaternion.Euler(-90, 0, 0);
+
         private static readonly Vector3 StorageDropForwardLocation = new Vector3(0, 0, 0.7f);
+        private static readonly Quaternion StorageDropRotation = Quaternion.Euler(90, 0, 0);
 
         private readonly Dictionary<Drone, ComputerStation> _controlledDrones = new Dictionary<Drone, ComputerStation>();
 
@@ -496,7 +498,7 @@ namespace Oxide.Plugins
                 : drone.transform.TransformPoint(StorageDropForwardLocation);
 
             Effect.server.Run(StorageDeployEffectPrefab, storage.transform.position);
-            var dropContainer = storage.inventory.Drop(DropBagPrefab, dropPosition, storage.transform.rotation);
+            var dropContainer = storage.inventory.Drop(DropBagPrefab, dropPosition, storage.transform.rotation * StorageDropRotation);
             Interface.Call("OnDroneStorageDropped", drone, storage, dropContainer, pilot);
         }
 
