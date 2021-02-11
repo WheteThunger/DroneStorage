@@ -19,14 +19,19 @@ namespace Oxide.Plugins
 
         private static DroneStorage _pluginInstance;
 
-        private const string PermissionDropItems = "dronestorage.dropitems";
+        private const string PermissionDeploy = "dronestorage.deploy";
+        private const string PermissionDeployFree = "dronestorage.deploy.free";
+        private const string PermissionAutoDeploy = "dronestorage.autodeploy";
         private const string PermissionViewItems = "dronestorage.viewitems";
+        private const string PermissionDropItems = "dronestorage.dropitems";
         private const string PermissionCapacityPrefix = "dronestorage.capacity";
 
         // HAB storage is the best since it has an accurate collider, decent rendering distance and is a StorageContainer.
         private const string ContainerPrefab = "assets/prefabs/deployable/hot air balloon/subents/hab_storage.prefab";
         private const string StorageDeployEffectPrefab = "assets/prefabs/deployable/small stash/effects/small-stash-deploy.prefab";
         private const string DropBagPrefab = "assets/prefabs/misc/item drop/item_drop.prefab";
+
+        private const int StashItemId = -369760990;
 
         private const string MaximumCapacityPanelName = "genericlarge";
         private const int MaximumCapacity = 42;
@@ -62,13 +67,19 @@ namespace Oxide.Plugins
         {
             _pluginInstance = this;
 
-            permission.RegisterPermission(PermissionDropItems, this);
+            permission.RegisterPermission(PermissionDeploy, this);
+            permission.RegisterPermission(PermissionDeployFree, this);
+            permission.RegisterPermission(PermissionAutoDeploy, this);
             permission.RegisterPermission(PermissionViewItems, this);
+            permission.RegisterPermission(PermissionDropItems, this);
 
             foreach (var capacityAmount in _pluginConfig.CapacityAmountsRequiringPermission)
                 permission.RegisterPermission(GetCapacityPermission(capacityAmount), this);
 
             Unsubscribe(nameof(OnEntitySpawned));
+
+            if (_pluginConfig.TipChance <= 0)
+                Unsubscribe(nameof(OnEntityBuilt));
         }
 
         private void Unload()
@@ -97,7 +108,7 @@ namespace Oxide.Plugins
             if (!IsDroneEligible(drone))
                 return;
 
-            TrySpawnStorage(drone);
+            TryAutoDeployStorage(drone);
         }
 
         private void OnEntityDeath(Drone drone)
@@ -198,9 +209,80 @@ namespace Oxide.Plugins
             return null;
         }
 
+        private void OnEntityBuilt(Planner planner, GameObject go)
+        {
+            if (planner == null || go == null)
+                return;
+
+            var drone = go.ToBaseEntity() as Drone;
+            if (drone == null)
+                return;
+
+            var player = planner.GetOwnerPlayer();
+            if (player == null)
+                return;
+
+            if (permission.UserHasPermission(player.UserIDString, PermissionDeploy)
+                && !permission.UserHasPermission(player.UserIDString, PermissionAutoDeploy)
+                && GetPlayerAllowedCapacity(player.userID) > 0
+                && UnityEngine.Random.Range(0, 100) < _pluginConfig.TipChance)
+                ChatMessage(player, "Tip.DeployCommand");
+        }
+
         #endregion
 
         #region Commands
+
+        [Command("dronestash")]
+        private void DroneStashCommand(IPlayer player)
+        {
+            if (player.IsServer)
+                return;
+
+            if (!player.HasPermission(PermissionDeploy))
+            {
+                ReplyToPlayer(player, "Error.NoPermission");
+                return;
+            }
+
+            var basePlayer = player.Object as BasePlayer;
+            var drone = GetLookEntity(basePlayer, 3) as Drone;
+            if (drone == null || !IsDroneEligible(drone))
+            {
+                ReplyToPlayer(player, "Error.NoDroneFound");
+                return;
+            }
+
+            var allowedCapacity = GetPlayerAllowedCapacity(basePlayer.userID);
+            if (allowedCapacity <= 0)
+            {
+                ReplyToPlayer(player, "Error.NoPermission");
+                return;
+            }
+
+            if (GetChildStorage(drone) != null)
+            {
+                ReplyToPlayer(player, "Error.AlreadyHasStorage");
+                return;
+            }
+
+            var isFree = player.HasPermission(PermissionDeployFree);
+            if (!isFree && basePlayer.inventory.FindItemID(StashItemId) == null)
+            {
+                ReplyToPlayer(player, "Error.NoStashItem");
+                return;
+            }
+
+            if (TryDeployStorage(drone, allowedCapacity) == null)
+            {
+                ReplyToPlayer(player, "Error.DeployFailed");
+            }
+            else if (!isFree)
+            {
+                basePlayer.inventory.Take(null, StashItemId, 1);
+                basePlayer.Command("note.inv", StashItemId, -1);
+            }
+        }
 
         [Command("dronestorage.ui.dropitems")]
         private void UICommandDropItems(IPlayer player)
@@ -390,9 +472,9 @@ namespace Oxide.Plugins
 
         #region Helper Methods
 
-        private static bool SpawnStorageWasBlocked(Drone drone)
+        private static bool DeployStorageWasBlocked(Drone drone)
         {
-            object hookResult = Interface.CallHook("OnDroneStorageSpawn", drone);
+            object hookResult = Interface.CallHook("OnDroneStorageDeploy", drone);
             return hookResult is bool && (bool)hookResult == false;
         }
 
@@ -437,8 +519,11 @@ namespace Oxide.Plugins
             entity.ClientRPCPlayer(null, player, "HitNotify");
         }
 
-        private StorageContainer AddDroneStorage(Drone drone, int capacity)
+        private StorageContainer TryDeployStorage(Drone drone, int capacity)
         {
+            if (DeployStorageWasBlocked(drone))
+                return null;
+
             var storage = GameManager.server.CreateEntity(ContainerPrefab, StorageLocalPosition, StorageLocalRotation) as StorageContainer;
             if (storage == null)
                 return null;
@@ -453,7 +538,7 @@ namespace Oxide.Plugins
             storage.panelName = GetSmallestPanelForCapacity(capacity);
 
             Effect.server.Run(StorageDeployEffectPrefab, storage.transform.position);
-            Interface.CallHook("OnDroneStorageSpawned", drone, storage);
+            Interface.CallHook("OnDroneStorageDeployed", drone, storage);
 
             return storage;
         }
@@ -502,6 +587,14 @@ namespace Oxide.Plugins
             Interface.Call("OnDroneStorageDropped", drone, storage, dropContainer, pilot);
         }
 
+        private static BaseEntity GetLookEntity(BasePlayer basePlayer, float maxDistance = 3)
+        {
+            RaycastHit hit;
+            return Physics.Raycast(basePlayer.eyes.HeadRay(), out hit, maxDistance, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore)
+                ? hit.GetEntity()
+                : null;
+        }
+
         // TODO: Remove this when we can use a post-hook variant of OnBookmarkControlEnd.
         private void DisconnectLooter(BasePlayer player)
         {
@@ -531,58 +624,59 @@ namespace Oxide.Plugins
         private void AddOrUpdateStorage(Drone drone)
         {
             var storage = GetChildStorage(drone);
-            if (storage != null)
+            if (storage == null)
             {
-                // Possibly increase capacity, but do not decrease it as it could hide items.
-                storage.inventory.capacity = Math.Max(storage.inventory.capacity, GetPlayerAllowedCapacity(drone.OwnerID));
-                storage.panelName = GetSmallestPanelForCapacity(storage.inventory.capacity);
+                TryAutoDeployStorage(drone);
                 return;
             }
-            TrySpawnStorage(drone);
+
+            // Possibly increase capacity, but do not decrease it because that could hide items.
+            storage.inventory.capacity = Math.Max(storage.inventory.capacity, GetPlayerAllowedCapacity(drone.OwnerID));
+            storage.panelName = GetSmallestPanelForCapacity(storage.inventory.capacity);
         }
 
-        private void TrySpawnStorage(Drone drone)
+        private void TryAutoDeployStorage(Drone drone)
         {
+            if (!permission.UserHasPermission(drone.OwnerID.ToString(), PermissionAutoDeploy))
+                return;
+
             var capacity = GetPlayerAllowedCapacity(drone.OwnerID);
             if (capacity <= 0)
                 return;
 
-            if (SpawnStorageWasBlocked(drone))
-                return;
-
-            AddDroneStorage(drone, capacity);
+            TryDeployStorage(drone, capacity);
         }
 
         #endregion
 
         #region Configuration
 
-        private int GetPlayerAllowedCapacity(ulong ownerId)
+        private int GetPlayerAllowedCapacity(ulong userId)
         {
             var capacityAmounts = _pluginConfig.CapacityAmountsRequiringPermission;
 
-            if (ownerId == 0 || capacityAmounts == null)
-                return _pluginConfig.DefaultCapacity;
+            if (userId == 0 || capacityAmounts == null)
+                return 0;
 
-            var ownerIdString = ownerId.ToString();
+            var userIdString = userId.ToString();
 
             for (var i = capacityAmounts.Length - 1; i >= 0; i--)
             {
                 var capacity = capacityAmounts[i];
-                if (permission.UserHasPermission(ownerIdString, GetCapacityPermission(capacity)))
+                if (permission.UserHasPermission(userIdString, GetCapacityPermission(capacity)))
                     return capacity;
             }
 
-            return _pluginConfig.DefaultCapacity;
+            return 0;
         }
 
-        internal class Configuration : SerializableConfiguration
+        private class Configuration : SerializableConfiguration
         {
-            [JsonProperty("DefaultCapacity")]
-            public int DefaultCapacity = 0;
+            [JsonProperty("TipChance")]
+            public int TipChance = 25;
 
             [JsonProperty("CapacityAmountsRequiringPermission")]
-            public int[] CapacityAmountsRequiringPermission = new int[] { 6, 18, 30, 42 };
+            public int[] CapacityAmountsRequiringPermission = new int[] { 6, 12, 18, 24, 30, 36, 42 };
         }
 
         private Configuration GetDefaultConfig() => new Configuration();
@@ -591,14 +685,14 @@ namespace Oxide.Plugins
 
         #region Configuration Boilerplate
 
-        internal class SerializableConfiguration
+        private class SerializableConfiguration
         {
             public string ToJson() => JsonConvert.SerializeObject(this);
 
             public Dictionary<string, object> ToDictionary() => JsonHelper.Deserialize(ToJson()) as Dictionary<string, object>;
         }
 
-        internal static class JsonHelper
+        private static class JsonHelper
         {
             public static object Deserialize(string json) => ToObject(JToken.Parse(json));
 
@@ -699,6 +793,9 @@ namespace Oxide.Plugins
         private void ReplyToPlayer(IPlayer player, string messageName, params object[] args) =>
             player.Reply(string.Format(GetMessage(player, messageName), args));
 
+        private void ChatMessage(BasePlayer player, string messageName, params object[] args) =>
+            player.ChatMessage(string.Format(GetMessage(player.IPlayer, messageName), args));
+
         private string GetMessage(IPlayer player, string messageName, params object[] args) =>
             GetMessage(player.Id, messageName, args);
 
@@ -714,6 +811,12 @@ namespace Oxide.Plugins
             {
                 ["UI.Button.ViewItems"] = "View Items",
                 ["UI.Button.DropItems"] = "Drop Items",
+                ["Tip.DeployCommand"] = "Tip: Look at the drone and run <color=yellow>/dronestash</color> to deploy a stash.",
+                ["Error.NoPermission"] = "You don't have permission to do that.",
+                ["Error.NoDroneFound"] = "Error: No drone found.",
+                ["Error.NoStashItem"] = "Error: You need a stash to do that.",
+                ["Error.AlreadyHasStorage"] = "Error: That drone already has a stash.",
+                ["Error.DeployFailed"] = "Error: Failed to deploy stash.",
             }, this, "en");
         }
 

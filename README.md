@@ -1,29 +1,45 @@
 ## Features
 
-- Adds a small stash to deployable drones (not delivery drones)
-- Drops stash contents when the drone is destroyed
-- Allows the drone controller to remotely view the stash contents, as well as drop them at the drone position
+- Allows players to manually or automatically deploy a small stash to deployable drones (not delivery drones)
+- Allows drone controllers to remotely view the stash contents, as well as drop them at the drone position
 - Allows configuring stash capacity based on permissions of the drone owner
 - Attacking the stash deals damage to the drone instead
+- Drops stash contents when the drone is destroyed
 
-## Installation
+## Commands
 
-1. Add the plugin to the `oxide/plugins` directory of your Rust server installation
-2. Update the config value for `DefaultCapacity` if you want all drones to have a stash (0 for no stash)
-3. Grant permissions to players who you want to allow more storage than the default
-4. Reload the plugin
-
-All existing deployed drones, as well as those deployed while the plugin is loaded, will have a stash added to them according to the plugin config and drone owner permissions.
-
-Note: Once drone stashes have spawned, you can increase their capacity by updating permissions and reloading the plugin, but capacity of existing drones will never be reduced to prevent hiding items.
+- `dronestash` -- Deploys a stash onto the drone the player is looking at, consuming a stash item from their inventory unless they have permission for free stashes.
 
 ## Permissions
 
-The following permissions come with this plugin's **default configuration**. Granting one to a player determines the capacity of stash containers added to drones they deploy.
+### Deployment permissions
+
+- `dronestorage.deploy` -- Required to use the `dronestash` command.
+- `dronestorage.deploy.free` -- Allows using the `dronestash` command for free (no stash item required).
+- `dronestorage.autodeploy` -- Drones deployed by players with this permission will automatically have a stash, free of charge.
+  - Note: Reloading the plugin will automatically add stashes to existing drones owned by players with this permission.
+
+Note: In order for manual or auto deployment to work, the player will need permission to at least 1 storage capacity. This can be achieved by setting a default capacity in the plugin configuration or by granting capacity with permissions.
+
+### UI Permissions
+
+Players with the following permissions will see UI buttons while controlling a drone.
+
+- `dronestorage.viewitems` -- Allows viewing the stash contents.
+- `dronestorage.dropitems` -- Allows dropping the stash contents at the drone position.
+
+Note: Being able to view the stash shouldn't allow players to remove the items remotely, due to the computer screen blocking the clicks, but UI buttons added by other plugins can still be clicked, so those may allow removing the items remotely. Please report such plugins to me so that I can work with the maintainer to prevent this issue.
+
+### Capacity permissions
+
+The following permissions come with this plugin's **default configuration**. Granting one to a player determines the capacity of stash containers they deploy onto drones.
 
 - `dronestorage.capacity.6` -- 1 row
+- `dronestorage.capacity.12` -- 2 rows
 - `dronestorage.capacity.18` -- 3 rows
+- `dronestorage.capacity.24` -- 4 rows
 - `dronestorage.capacity.30` -- 5 rows
+- `dronestorage.capacity.36` -- 6 rows
 - `dronestorage.capacity.42` -- 7 rows
 
 You can add more capacity amounts in the plugin configuration (`CapacityAmountsRequiringPermission`), and the plugin will automatically generate permissions of the format `dronestorage.capacity.<amount>` when reloaded. If a player has permission to multiple capacity amounts, only the last one will apply (based on the order in the config).
@@ -34,44 +50,56 @@ Default configuration:
 
 ```json
 {
-  "DefaultCapacity": 0,
+  "TipChance": 25,
   "CapacityAmountsRequiringPermission": [
     6,
+    12,
     18,
+    24,
     30,
+    36,
     42
   ]
 }
 ```
+
+- `TipChance` (`0` - `100`) -- Chance that a tip message will be shown to a player when they deploy a drone, informing them that they can use the `/dronestash` command. Only applies to players with the `dronestorage.deploy` permission who do not have the `dronestorage.autodeploy` permission.
+- `CapacityAmountsRequiringPermission` -- List of numbers used to generate permissions of the format `dronestorage.capacity.<amount>` (see permissions section).
 
 ## Localization
 
 ```json
 {
   "UI.Button.ViewItems": "View Items",
-  "UI.Button.DropItems": "Drop Items"
+  "UI.Button.DropItems": "Drop Items",
+  "Tip.DeployCommand": "Tip: Look at the drone and run <color=yellow>/dronestash</color> to deploy a stash.",
+  "Error.NoPermission": "You don't have permission to do that.",
+  "Error.NoDroneFound": "Error: No drone found.",
+  "Error.NoStashItem": "Error: You need a stash to do that.",
+  "Error.AlreadyHasStorage": "Error: That drone already has a stash.",
+  "Error.DeployFailed": "Error: Failed to deploy stash."
 }
 ```
 
 ## Developer Hooks
 
-#### OnDroneStorageSpawn
+#### OnDroneStorageDeploy
 
-- Called when this plugin is about to spawn a stash container on a drone
+- Called when this plugin is about to deploy a stash container onto a drone
 - Returning `false` will prevent the default behavior
 - Returning `null` will result in the default behavior
 
 ```csharp
-object OnDroneStorageSpawn(Drone drone)
+object OnDroneStorageDeploy(Drone drone)
 ```
 
-#### OnDroneStorageSpawned
+#### OnDroneStorageDeployed
 
-- Called after this plugin has spawned a stash container on a drone
+- Called after this plugin has deployed a stash container onto a drone
 - No return behavior
 
 ```csharp
-void OnDroneStorageSpawned(Drone drone, StorageContainer stash)
+void OnDroneStorageDeployed(Drone drone, StorageContainer stash)
 ```
 
 #### OnDroneStorageDrop
@@ -95,4 +123,4 @@ Note: The `BasePlayer` argument will be `null` if the container is being dropped
 void OnDroneStorageDropped(Drone drone, StorageContainer stash, DroppedItemContainer dropContainer, BasePlayer optionalPilot)
 ```
 
-Note: The `BasePlayer` argument will be `null` if the container is being dropped because the drone was destroyed instead of an intentional drop.
+Note: The `BasePlayer` argument will be `null` if the container was dropped because the drone was destroyed instead of an intentional drop.
