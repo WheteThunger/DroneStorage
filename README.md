@@ -84,6 +84,20 @@ Default configuration:
 - `UISettings` -- Options to control the display of the UI.
   - Note: It is not possible to position the UI relative to the computer station UI consistently for all resolutions because modded UIs use scaling whereas the computer station UI uses the same fixed pixel offsets for all resolutions.
 
+## FAQ
+
+#### How do I fix the drone disconnecting when they get out of range of the computer station?
+
+Install the [Unlimted Drone Range](https://umod.org/plugins/unlimited-drone-range) plugin.
+
+#### How do I control drones?
+
+As of this writing (February 2021), RC drones can only be made available via admin commands or via plugins.
+
+#### How do I click the UI buttons for viewing or dropping the stash contents?
+
+Players can press the `Esc` key to make the cursor appear. When you want to control the drone again, simply click anywhere on the screen.
+
 ## Localization
 
 ```json
