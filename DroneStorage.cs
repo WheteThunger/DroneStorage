@@ -164,7 +164,8 @@ namespace Oxide.Plugins
             {
                 if (computerStation == null
                     || computerStation.currentlyControllingEnt.uid != drone.net.ID
-                    || computerStation._mounted != player)
+                    || computerStation._mounted != player
+                    || GetChildStorage(drone) == null)
                     return;
 
                 _controlledDrones[drone] = computerStation;
