@@ -12,7 +12,7 @@ using UnityEngine;
 namespace Oxide.Plugins
 {
     [Info("Drone Storage", "WhiteThunder", "1.0.0")]
-    [Description("Adds a small stash to deployed drones.")]
+    [Description("Allows players to manually or automatically deploy a small stash to deployable drones.")]
     internal class DroneStorage : CovalencePlugin
     {
         #region Fields
@@ -72,7 +72,7 @@ namespace Oxide.Plugins
             permission.RegisterPermission(PermissionViewItems, this);
             permission.RegisterPermission(PermissionDropItems, this);
 
-            foreach (var capacityAmount in _pluginConfig.CapacityAmountsRequiringPermission)
+            foreach (var capacityAmount in _pluginConfig.CapacityAmounts)
                 permission.RegisterPermission(GetCapacityPermission(capacityAmount), this);
 
             Unsubscribe(nameof(OnEntitySpawned));
@@ -642,7 +642,7 @@ namespace Oxide.Plugins
 
         private int GetPlayerAllowedCapacity(ulong userId)
         {
-            var capacityAmounts = _pluginConfig.CapacityAmountsRequiringPermission;
+            var capacityAmounts = _pluginConfig.CapacityAmounts;
 
             if (userId == 0 || capacityAmounts == null)
                 return 0;
@@ -664,8 +664,8 @@ namespace Oxide.Plugins
             [JsonProperty("TipChance")]
             public int TipChance = 25;
 
-            [JsonProperty("CapacityAmountsRequiringPermission")]
-            public int[] CapacityAmountsRequiringPermission = new int[] { 6, 12, 18, 24, 30, 36, 42 };
+            [JsonProperty("CapacityAmounts")]
+            public int[] CapacityAmounts = new int[] { 6, 12, 18, 24, 30, 36, 42 };
 
             [JsonProperty("UISettings")]
             public UISettings UISettings = new UISettings();

@@ -4,7 +4,7 @@
 - Allows drone controllers to remotely view the stash contents, as well as drop them at the drone position
 - Allows configuring stash capacity based on permissions of the drone owner
 - Attacking the stash deals damage to the drone instead
-- Drops stash contents when the drone is destroyed
+- Destroying the drone drops the stash contents
 
 ## Commands
 
@@ -19,7 +19,7 @@
 - `dronestorage.autodeploy` -- Drones deployed by players with this permission will automatically have a stash, free of charge.
   - Note: Reloading the plugin will automatically add stashes to existing drones owned by players with this permission.
 
-Note: In order for manual or auto deployment to work, the player will need permission to at least 1 storage capacity. This can be achieved by setting a default capacity in the plugin configuration or by granting capacity with permissions.
+Note: In order for manual or automatic deployment to work, the player will need permission to at least 1 storage capacity.
 
 ### UI Permissions
 
@@ -42,7 +42,7 @@ The following permissions come with this plugin's **default configuration**. Gra
 - `dronestorage.capacity.36` -- 6 rows
 - `dronestorage.capacity.42` -- 7 rows
 
-You can add more capacity amounts in the plugin configuration (`CapacityAmountsRequiringPermission`), and the plugin will automatically generate permissions of the format `dronestorage.capacity.<amount>` when reloaded. If a player has permission to multiple capacity amounts, only the last one will apply (based on the order in the config).
+You can add more capacity amounts in the plugin configuration (`CapacityAmounts`), and the plugin will automatically generate permissions of the format `dronestorage.capacity.<amount>` when reloaded. If a player has permission to multiple capacity amounts, only the last one will apply (based on the order in the config).
 
 ## Configuration
 
@@ -51,7 +51,7 @@ Default configuration:
 ```json
 {
   "TipChance": 25,
-  "CapacityAmountsRequiringPermission": [
+  "CapacityAmounts": [
     6,
     12,
     18,
@@ -80,9 +80,9 @@ Default configuration:
 ```
 
 - `TipChance` (`0` - `100`) -- Chance that a tip message will be shown to a player when they deploy a drone, informing them that they can use the `/dronestash` command. Only applies to players with the `dronestorage.deploy` permission who do not have the `dronestorage.autodeploy` permission.
-- `CapacityAmountsRequiringPermission` -- List of numbers used to generate permissions of the format `dronestorage.capacity.<amount>` (see permissions section).
+- `CapacityAmounts` -- List of numbers used to generate permissions of the format `dronestorage.capacity.<amount>` (see permissions section).
 - `UISettings` -- Options to control the display of the UI.
-  - Note: It is not possible to position the UI relative to the computer station UI consistently because modded UIs use scaling whereas the computer station UI uses the same fixed pixel offsets for all resolutions.
+  - Note: It is not possible to position the UI relative to the computer station UI consistently for all resolutions because modded UIs use scaling whereas the computer station UI uses the same fixed pixel offsets for all resolutions.
 
 ## Localization
 
