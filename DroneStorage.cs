@@ -326,8 +326,7 @@ namespace Oxide.Plugins
 
             if (basePlayer.inventory.loot.IsLooting() && basePlayer.inventory.loot.entitySource == storage)
             {
-                // HACK: Send empty respawn information to fully close the player inventory (close the storage)
-                basePlayer.ClientRPCPlayer(null, basePlayer, "OnRespawnInformation");
+                EndLooting(basePlayer);
                 return;
             }
 
@@ -571,6 +570,9 @@ namespace Oxide.Plugins
                 ? drone.transform.position
                 : drone.transform.TransformPoint(StorageDropForwardLocation);
 
+            if (pilot != null)
+                EndLooting(pilot);
+
             Effect.server.Run(StorageDeployEffectPrefab, storage.transform.position);
             var dropContainer = storage.inventory.Drop(DropBagPrefab, dropPosition, storage.transform.rotation * StorageDropRotation);
             Interface.Call("OnDroneStorageDropped", drone, storage, dropContainer, pilot);
@@ -582,6 +584,14 @@ namespace Oxide.Plugins
             return Physics.Raycast(basePlayer.eyes.HeadRay(), out hit, maxDistance, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore)
                 ? hit.GetEntity()
                 : null;
+        }
+
+        private static void EndLooting(BasePlayer player)
+        {
+            player.EndLooting();
+
+            // HACK: Send empty respawn information to fully close the player inventory (close the storage).
+            player.ClientRPCPlayer(null, player, "OnRespawnInformation");
         }
 
         // TODO: Remove this when we can use a post-hook variant of OnBookmarkControlEnd.
