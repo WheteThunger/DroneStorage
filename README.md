@@ -86,13 +86,13 @@ Default configuration:
 
 ## FAQ
 
-#### How do I fix the drone disconnecting when they get out of range of the computer station?
-
-Install the [Unlimted Drone Range](https://umod.org/plugins/unlimited-drone-range) plugin.
-
-#### How do I control drones?
+#### How do I get a drone?
 
 As of this writing (February 2021), RC drones can only be made available via admin commands or via plugins.
+
+#### How do I fix drones disconnecting when they get out of range of the computer station?
+
+Install the [Unlimted Drone Range](https://umod.org/plugins/unlimited-drone-range) plugin.
 
 #### How do I click the UI buttons for viewing or dropping the stash contents?
 
