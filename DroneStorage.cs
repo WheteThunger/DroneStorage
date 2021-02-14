@@ -508,7 +508,7 @@ namespace Oxide.Plugins
             entity.ClientRPCPlayer(null, player, "HitNotify");
         }
 
-        private StorageContainer TryDeployStorage(Drone drone, int capacity)
+        private static StorageContainer TryDeployStorage(Drone drone, int capacity)
         {
             if (DeployStorageWasBlocked(drone))
                 return null;
