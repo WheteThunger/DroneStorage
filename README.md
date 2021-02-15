@@ -118,7 +118,7 @@ Players can press the `Esc` key to make the cursor appear. When you want to cont
 #### OnDroneStorageDeploy
 
 - Called when this plugin is about to deploy a stash container onto a drone
-- Returning `false` will prevent the default behavior
+- Returning `false` will prevent the stash container from being deployed
 - Returning `null` will result in the default behavior
 
 ```csharp
@@ -137,7 +137,7 @@ void OnDroneStorageDeployed(Drone drone, StorageContainer stash)
 #### OnDroneStorageDrop
 
 - Called when a drone's stash is about to be dropped
-- Returning `false` will prevent the default behavior
+- Returning `false` will prevent the stash container from being dropped
 - Returning `null` will result in the default behavior
 
 ```csharp
