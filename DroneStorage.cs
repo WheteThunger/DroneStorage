@@ -229,6 +229,23 @@ namespace Oxide.Plugins
                 ChatMessage(player, "Tip.DeployCommand");
         }
 
+        private ItemContainer.CanAcceptResult? CanAcceptItem(ItemContainer container, Item item)
+        {
+            var storageContainer = container.entityOwner as StorageContainer;
+            if (storageContainer == null)
+                return null;
+
+            var drone = GetParentDrone(storageContainer);
+            if (drone == null || !IsDroneEligible(drone))
+                return null;
+
+            if (_pluginConfig.DisallowedItems != null
+                && _pluginConfig.DisallowedItems.Contains(item.info.shortname))
+                return ItemContainer.CanAcceptResult.CannotAccept;
+
+            return null;
+        }
+
         #endregion
 
         #region Commands
@@ -684,6 +701,9 @@ namespace Oxide.Plugins
 
             [JsonProperty("CapacityAmounts")]
             public int[] CapacityAmounts = new int[] { 6, 12, 18, 24, 30, 36, 42 };
+
+            [JsonProperty("DisallowedItems")]
+            public string[] DisallowedItems = new string[0];
 
             [JsonProperty("UISettings")]
             public UISettings UISettings = new UISettings();
