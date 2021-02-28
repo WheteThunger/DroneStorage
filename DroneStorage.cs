@@ -513,23 +513,28 @@ namespace Oxide.Plugins
             if (DeployStorageWasBlocked(drone))
                 return null;
 
-            var storage = GameManager.server.CreateEntity(ContainerPrefab, StorageLocalPosition, StorageLocalRotation) as StorageContainer;
-            if (storage == null)
+            var container = GameManager.server.CreateEntity(ContainerPrefab, StorageLocalPosition, StorageLocalRotation) as StorageContainer;
+            if (container == null)
                 return null;
 
+            container.SetParent(drone);
+            container.Spawn();
+
+            SetupDroneStorage(container, capacity);
+
+            Effect.server.Run(StorageDeployEffectPrefab, container.transform.position);
+            Interface.CallHook("OnDroneStorageDeployed", drone, container);
+
+            return container;
+        }
+
+        private static void SetupDroneStorage(StorageContainer container, int capacity)
+        {
             // Damage will be processed by the drone.
-            storage.baseProtection = null;
+            container.baseProtection = null;
 
-            storage.SetParent(drone);
-            storage.Spawn();
-
-            storage.inventory.capacity = capacity;
-            storage.panelName = GetSmallestPanelForCapacity(capacity);
-
-            Effect.server.Run(StorageDeployEffectPrefab, storage.transform.position);
-            Interface.CallHook("OnDroneStorageDeployed", drone, storage);
-
-            return storage;
+            container.inventory.capacity = capacity;
+            container.panelName = GetSmallestPanelForCapacity(capacity);
         }
 
         private static string GetSmallestPanelForCapacity(int capacity)
@@ -623,16 +628,16 @@ namespace Oxide.Plugins
 
         private void AddOrUpdateStorage(Drone drone)
         {
-            var storage = GetChildStorage(drone);
-            if (storage == null)
+            var container = GetChildStorage(drone);
+            if (container == null)
             {
                 TryAutoDeployStorage(drone);
                 return;
             }
 
             // Possibly increase capacity, but do not decrease it because that could hide items.
-            storage.inventory.capacity = Math.Max(storage.inventory.capacity, GetPlayerAllowedCapacity(drone.OwnerID));
-            storage.panelName = GetSmallestPanelForCapacity(storage.inventory.capacity);
+            int capacity = Math.Max(container.inventory.capacity, GetPlayerAllowedCapacity(drone.OwnerID));
+            SetupDroneStorage(container, capacity);
         }
 
         private void TryAutoDeployStorage(Drone drone)
