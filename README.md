@@ -117,42 +117,46 @@ Players can press the `Esc` key to make the cursor appear. When you want to cont
 
 #### OnDroneStorageDeploy
 
-- Called when this plugin is about to deploy a stash container onto a drone
+- Called when this a stash container is about to be deployed onto a drone
 - Returning `false` will prevent the stash container from being deployed
 - Returning `null` will result in the default behavior
 
 ```csharp
-object OnDroneStorageDeploy(Drone drone)
+object OnDroneStorageDeploy(Drone drone, BasePlayer optionalDeployer)
 ```
+
+Note: The `BasePlayer` argument will be `null` if the container is being deployed automatically (not via the `dronestash` command).
 
 #### OnDroneStorageDeployed
 
-- Called after this plugin has deployed a stash container onto a drone
+- Called after a stash container has been deployed onto a drone
 - No return behavior
 
 ```csharp
-void OnDroneStorageDeployed(Drone drone, StorageContainer stash)
+void OnDroneStorageDeployed(Drone drone, StorageContainer stash, BasePlayer optionalDeployer)
 ```
+
+Note: The `BasePlayer` argument will be `null` if the container was deployed automatically (not via the `dronestash` command).
 
 #### OnDroneStorageDrop
 
-- Called when a drone's stash is about to be dropped
-- Returning `false` will prevent the stash container from being dropped
+- Called when a drone's stash contents are about to be dropped
+- Returning `false` will prevent the stash contents from being dropped
 - Returning `null` will result in the default behavior
 
 ```csharp
 object OnDroneStorageDrop(Drone drone, StorageContainer stash, BasePlayer optionalPilot)
 ```
 
-Note: The `BasePlayer` argument will be `null` if the container is being dropped because the drone was destroyed instead of an intentional drop.
+Note: The `BasePlayer` argument will be `null` if the stash contents are being dropped because the drone was destroyed (not via the pilot intentionally dropping it).
 
 #### OnDroneStorageDropped
 
-- Called after a drone's stash has been dropped
+- Called after a drone's stash contents have been dropped
 - No return behavior
 
 ```csharp
 void OnDroneStorageDropped(Drone drone, StorageContainer stash, DroppedItemContainer dropContainer, BasePlayer optionalPilot)
 ```
 
-Note: The `BasePlayer` argument will be `null` if the container was dropped because the drone was destroyed instead of an intentional drop.
+Note: The `BasePlayer` argument will be `null` if the stash contents were dropped because the drone was destroyed (not via the pilot intentionally dropping it).

@@ -273,7 +273,7 @@ namespace Oxide.Plugins
                 return;
             }
 
-            if (TryDeployStorage(drone, allowedCapacity) == null)
+            if (TryDeployStorage(drone, allowedCapacity, basePlayer) == null)
             {
                 ReplyToPlayer(player, "Error.DeployFailed");
             }
@@ -461,9 +461,9 @@ namespace Oxide.Plugins
 
         #region Helper Methods
 
-        private static bool DeployStorageWasBlocked(Drone drone)
+        private static bool DeployStorageWasBlocked(Drone drone, BasePlayer deployer)
         {
-            object hookResult = Interface.CallHook("OnDroneStorageDeploy", drone);
+            object hookResult = Interface.CallHook("OnDroneStorageDeploy", drone, deployer);
             return hookResult is bool && (bool)hookResult == false;
         }
 
@@ -508,9 +508,9 @@ namespace Oxide.Plugins
             entity.ClientRPCPlayer(null, player, "HitNotify");
         }
 
-        private static StorageContainer TryDeployStorage(Drone drone, int capacity)
+        private static StorageContainer TryDeployStorage(Drone drone, int capacity, BasePlayer deployer = null)
         {
-            if (DeployStorageWasBlocked(drone))
+            if (DeployStorageWasBlocked(drone, deployer))
                 return null;
 
             var container = GameManager.server.CreateEntity(ContainerPrefab, StorageLocalPosition, StorageLocalRotation) as StorageContainer;
@@ -523,7 +523,7 @@ namespace Oxide.Plugins
             SetupDroneStorage(container, capacity);
 
             Effect.server.Run(StorageDeployEffectPrefab, container.transform.position);
-            Interface.CallHook("OnDroneStorageDeployed", drone, container);
+            Interface.CallHook("OnDroneStorageDeployed", drone, container, deployer);
 
             return container;
         }
