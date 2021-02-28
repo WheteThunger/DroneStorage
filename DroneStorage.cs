@@ -660,19 +660,21 @@ namespace Oxide.Plugins
         {
             var capacityAmounts = _pluginConfig.CapacityAmounts;
 
-            if (userId == 0 || capacityAmounts == null)
+            if (userId == 0 || capacityAmounts == null || capacityAmounts.Length == 0)
                 return 0;
 
             var userIdString = userId.ToString();
+            var largestAllowedCapacity = 0;
 
             for (var i = capacityAmounts.Length - 1; i >= 0; i--)
             {
                 var capacity = capacityAmounts[i];
-                if (permission.UserHasPermission(userIdString, GetCapacityPermission(capacity)))
-                    return capacity;
+                if (capacity > largestAllowedCapacity
+                    && permission.UserHasPermission(userIdString, GetCapacityPermission(capacity)))
+                    largestAllowedCapacity = capacity;
             }
 
-            return 0;
+            return largestAllowedCapacity;
         }
 
         private class Configuration : SerializableConfiguration

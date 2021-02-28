@@ -42,7 +42,7 @@ The following permissions come with this plugin's **default configuration**. Gra
 - `dronestorage.capacity.36` -- 6 rows
 - `dronestorage.capacity.42` -- 7 rows
 
-You can add more capacity amounts in the plugin configuration (`CapacityAmounts`), and the plugin will automatically generate permissions of the format `dronestorage.capacity.<amount>` when reloaded. If a player has permission to multiple capacity amounts, only the last one will apply (based on the order in the config).
+You can add more capacity amounts in the plugin configuration (`CapacityAmounts`), and the plugin will automatically generate permissions of the format `dronestorage.capacity.<amount>` when reloaded. If a player has permission to multiple capacity amounts, the highest will apply.
 
 ## Configuration
 
