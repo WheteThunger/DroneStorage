@@ -61,6 +61,7 @@ Default configuration:
     42
   ],
   "DisallowedItems": [],
+  "DisallowedSkins": [],
   "UISettings": {
     "AnchorMin": "0.5 1",
     "AnchorMax": "0.5 1",
@@ -83,6 +84,7 @@ Default configuration:
 - `TipChance` (`0` - `100`) -- Chance that a tip message will be shown to a player when they deploy a drone, informing them that they can use the `/dronestash` command. Only applies to players with the `dronestorage.deploy` permission who do not have the `dronestorage.autodeploy` permission.
 - `CapacityAmounts` -- List of numbers used to generate permissions of the format `dronestorage.capacity.<amount>` (see permissions section).
 - `DisallowedItems` -- List of item short names to disallow in drone stashes.
+- `DisallowedSkins` -- List of item skins to disallow in drone stashes.
 - `UISettings` -- Options to control the display of the UI.
   - Note: It is not possible to position the UI relative to the computer station UI consistently for all resolutions because modded UIs use scaling whereas the computer station UI uses the same fixed pixel offsets for all resolutions.
 

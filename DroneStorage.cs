@@ -243,6 +243,11 @@ namespace Oxide.Plugins
                 && _pluginConfig.DisallowedItems.Contains(item.info.shortname))
                 return ItemContainer.CanAcceptResult.CannotAccept;
 
+            if (item.skin != 0
+                && _pluginConfig.DisallowedSkins != null
+                && _pluginConfig.DisallowedSkins.Contains(item.skin))
+                return ItemContainer.CanAcceptResult.CannotAccept;
+
             return null;
         }
 
@@ -704,6 +709,9 @@ namespace Oxide.Plugins
 
             [JsonProperty("DisallowedItems")]
             public string[] DisallowedItems = new string[0];
+
+            [JsonProperty("DisallowedSkins")]
+            public ulong[] DisallowedSkins = new ulong[0];
 
             [JsonProperty("UISettings")]
             public UISettings UISettings = new UISettings();
