@@ -53,11 +53,6 @@ namespace Oxide.Plugins
         private static readonly Vector3 StorageDropForwardLocation = new Vector3(0, 0, 0.7f);
         private static readonly Quaternion StorageDropRotation = Quaternion.Euler(90, 0, 0);
 
-        private readonly Dictionary<Drone, ComputerStation> _controlledDrones = new Dictionary<Drone, ComputerStation>();
-
-        // TODO: Remove this when we can use a post-hook variant of OnBookmarkControlEnd.
-        private readonly HashSet<BasePlayer> _droneStorageLooters = new HashSet<BasePlayer>();
-
         #endregion
 
         #region Hooks
@@ -120,23 +115,6 @@ namespace Oxide.Plugins
                 DropItems(drone, storage);
         }
 
-        private void OnEntityKill(Drone drone)
-        {
-            if (!IsDroneEligible(drone))
-                return;
-
-            ComputerStation computerStation;
-            if (!_controlledDrones.TryGetValue(drone, out computerStation))
-                return;
-
-            var controllerPlayer = computerStation.GetMounted();
-            if (controllerPlayer == null)
-                return;
-
-            _controlledDrones.Remove(drone);
-            UI.Destroy(controllerPlayer);
-        }
-
         private object OnEntityTakeDamage(StorageContainer storage, HitInfo info)
         {
             var drone = GetParentDrone(storage);
@@ -149,49 +127,21 @@ namespace Oxide.Plugins
             return true;
         }
 
-        private void OnBookmarkControl(ComputerStation computerStation, BasePlayer player, string bookmarkName, IRemoteControllable entity)
+        private void OnBookmarkControlStarted(ComputerStation computerStation, BasePlayer player, string bookmarkName, IRemoteControllable entity)
         {
-            CleanupCache(computerStation);
+            EndLooting(player);
             UI.Destroy(player);
 
-            // TODO: Narrow hook signature after updating to use a post-hook variant of OnBookmarkControlEnd.
             var drone = entity as Drone;
-            if (drone == null)
-                return;
-
-            // Without a delay, we can't know whether another plugin blocked the entity from being controlled.
-            NextTick(() =>
-            {
-                if (computerStation == null
-                    || computerStation.currentlyControllingEnt.uid != drone.net.ID
-                    || computerStation._mounted != player
-                    || GetChildStorage(drone) == null)
-                    return;
-
-                _controlledDrones[drone] = computerStation;
+            if (drone != null && GetChildStorage(drone) != null)
                 UI.Create(player);
-            });
         }
 
-        private void OnBookmarkControlEnd(ComputerStation station, BasePlayer player, Drone drone)
+        private void OnBookmarkControlEnded(ComputerStation station, BasePlayer player, Drone drone)
         {
-            _controlledDrones.Remove(drone);
+            EndLooting(player);
             UI.Destroy(player);
         }
-
-        // TODO: Remove this when we can use a post-hook variant of OnBookmarkControlEnd.
-        private void OnEntityDismounted(ComputerStation station, BasePlayer player)
-        {
-            DisconnectLooter(player);
-            CleanupCache(station);
-
-            if (player != null)
-                UI.Destroy(player);
-        }
-
-        // TODO: Remove this when we can use a post-hook variant of OnBookmarkControlEnd.
-        private void OnLootEntityEnd(BasePlayer player, StorageContainer storage) =>
-            _droneStorageLooters.Remove(player);
 
         private object CanPickupEntity(BasePlayer player, Drone drone)
         {
@@ -354,7 +304,6 @@ namespace Oxide.Plugins
             }
 
             storage.PlayerOpenLoot(basePlayer, storage.panelName, doPositionChecks: false);
-            _droneStorageLooters.Add(basePlayer);
         }
 
         #endregion
@@ -620,32 +569,6 @@ namespace Oxide.Plugins
 
             // HACK: Send empty respawn information to fully close the player inventory (close the storage).
             player.ClientRPCPlayer(null, player, "OnRespawnInformation");
-        }
-
-        // TODO: Remove this when we can use a post-hook variant of OnBookmarkControlEnd.
-        private void DisconnectLooter(BasePlayer player)
-        {
-            if (_droneStorageLooters.Contains(player))
-                player.inventory.loot.Clear();
-        }
-
-        // This fixes an issue where switching from a drone to a camera doesn't remove the UI.
-        // TODO: Remove this when we can use a post-hook variant of OnBookmarkControlEnd.
-        private void CleanupCache(ComputerStation station)
-        {
-            var drone = GetCachedControlledDrone(station);
-            if (drone != null)
-                _controlledDrones.Remove(drone);
-        }
-
-        private Drone GetCachedControlledDrone(ComputerStation station)
-        {
-            foreach (var entry in _controlledDrones)
-            {
-                if (entry.Value == station)
-                    return entry.Key;
-            }
-            return null;
         }
 
         private void AddOrUpdateStorage(Drone drone)
