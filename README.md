@@ -19,7 +19,7 @@
 - `dronestorage.autodeploy` -- Drones deployed by players with this permission will automatically have a stash, free of charge.
   - Note: Reloading the plugin will automatically add stashes to existing drones owned by players with this permission.
 
-Note: In order for manual or automatic deployment to work, the player will need permission to at least 1 storage capacity.
+Note: In order for manual or automatic deployment to work, the player will need permission to at least 1 storage capacity (see the Capacity permissions section below).
 
 ### UI Permissions
 
@@ -84,7 +84,7 @@ Default configuration:
 - `TipChance` (`0` - `100`) -- Chance that a tip message will be shown to a player when they deploy a drone, informing them that they can use the `/dronestash` command. Only applies to players with the `dronestorage.deploy` permission who do not have the `dronestorage.autodeploy` permission.
 - `CapacityAmounts` -- List of numbers used to generate permissions of the format `dronestorage.capacity.<amount>` (see permissions section).
 - `DisallowedItems` -- List of item short names to disallow in drone stashes.
-- `DisallowedSkins` -- List of item skins to disallow in drone stashes.
+- `DisallowedSkins` -- List of item skin ids (numbers) to disallow in drone stashes.
 - `UISettings` -- Options to control the display of the UI.
   - Note: It is not possible to position the UI relative to the computer station UI consistently for all resolutions because modded UIs use scaling whereas the computer station UI uses the same fixed pixel offsets for all resolutions.
 
@@ -92,15 +92,11 @@ Default configuration:
 
 #### How do I get a drone?
 
-As of this writing (February 2021), RC drones can only be made available via admin commands or via plugins.
-
-#### How do I fix drones disconnecting when they get out of range of the computer station?
-
-Install the [Unlimted Drone Range](https://umod.org/plugins/unlimited-drone-range) plugin.
+As of this writing (March 2021), RC drones are a deployable item named `drone`, but they do not appear naturally in any loot table, nor are they craftable. However, since they are simply an item, you can use plugins to add them to loot tables, kits, GUI shops, etc. Admins can also get them with the command `inventory.give drone 1`, or spawn one in directly with `spawn drone.deployed`.
 
 #### How do I click the UI buttons for viewing or dropping the stash contents?
 
-Players can press the `Esc` key to make the cursor appear. When you want to control the drone again, simply click anywhere on the screen.
+While controlling a drone, press the `Esc` key to make the cursor appear. When you want to control the drone again, simply click anywhere on the screen.
 
 ## Localization
 
