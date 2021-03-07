@@ -133,7 +133,7 @@ namespace Oxide.Plugins
             UI.Destroy(player);
 
             var drone = entity as Drone;
-            if (drone != null && GetChildStorage(drone) != null)
+            if (drone != null && GetDroneStorage(drone) != null)
                 UI.Create(player);
         }
 
@@ -148,7 +148,7 @@ namespace Oxide.Plugins
             if (!IsDroneEligible(drone))
                 return null;
 
-            var storage = GetChildStorage(drone);
+            var storage = GetDroneStorage(drone);
             if (storage == null)
                 return null;
 
@@ -230,7 +230,7 @@ namespace Oxide.Plugins
             if (drone == null)
                 return null;
 
-            var storage = GetChildStorage(drone);
+            var storage = GetDroneStorage(drone);
             if (storage != null && storage == player.inventory.loot.entitySource)
                 return false;
 
@@ -268,7 +268,7 @@ namespace Oxide.Plugins
                 return;
             }
 
-            if (GetChildStorage(drone) != null)
+            if (GetDroneStorage(drone) != null)
             {
                 ReplyToPlayer(player, "Error.AlreadyHasStorage");
                 return;
@@ -303,7 +303,7 @@ namespace Oxide.Plugins
             if (drone == null)
                 return;
 
-            var storage = GetChildStorage(drone);
+            var storage = GetDroneStorage(drone);
             if (storage == null)
                 return;
 
@@ -321,7 +321,7 @@ namespace Oxide.Plugins
             if (drone == null)
                 return;
 
-            var storage = GetChildStorage(drone);
+            var storage = GetDroneStorage(drone);
             if (storage == null)
                 return;
 
@@ -493,7 +493,7 @@ namespace Oxide.Plugins
         private static Drone GetControlledDrone(ComputerStation computerStation) =>
             computerStation.currentlyControllingEnt.Get(serverside: true) as Drone;
 
-        private static StorageContainer GetChildStorage(Drone drone) =>
+        private static StorageContainer GetDroneStorage(Drone drone) =>
             GetChildOfType<StorageContainer>(drone);
 
         private static T GetChildOfType<T>(BaseEntity entity) where T : BaseEntity
@@ -610,7 +610,7 @@ namespace Oxide.Plugins
 
         private void AddOrUpdateStorage(Drone drone)
         {
-            var container = GetChildStorage(drone);
+            var container = GetDroneStorage(drone);
             if (container == null)
             {
                 TryAutoDeployStorage(drone);
