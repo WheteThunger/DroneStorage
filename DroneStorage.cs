@@ -201,6 +201,42 @@ namespace Oxide.Plugins
             return null;
         }
 
+        // Prevent the drone controller from moving items while remotely viewing a drone stash.
+        private bool? CanMoveItem(Item item, PlayerInventory playerInventory)
+        {
+            if (item.parent == null)
+                return null;
+
+            var player = playerInventory.baseEntity;
+            if (player == null)
+                return null;
+
+            var drone = GetControlledDrone(player);
+            if (drone == null)
+                return null;
+
+            // For simplicity, simply block all item moves while the player is looting a drone stash.
+            var storageContainer = playerInventory.loot.entitySource as StorageContainer;
+            if (storageContainer != null && GetParentDrone(storageContainer) != null)
+                return false;
+
+            return null;
+        }
+
+        // Prevent the drone controller from dropping items (or any item action) while remotely viewing a drone stash.
+        private bool? OnItemAction(Item item, string text, BasePlayer player)
+        {
+            var drone = GetControlledDrone(player);
+            if (drone == null)
+                return null;
+
+            var storage = GetChildStorage(drone);
+            if (storage != null && storage == player.inventory.loot.entitySource)
+                return false;
+
+            return null;
+        }
+
         #endregion
 
         #region Commands
@@ -259,20 +295,16 @@ namespace Oxide.Plugins
         [Command("dronestorage.ui.dropitems")]
         private void UICommandDropItems(IPlayer player)
         {
-            var basePlayer = player.Object as BasePlayer;
-            var computerStation = basePlayer.GetMounted() as ComputerStation;
-            if (computerStation == null)
+            if (player.IsServer || !player.HasPermission(PermissionDropItems))
                 return;
 
-            var drone = GetControlledDrone(computerStation);
+            var basePlayer = player.Object as BasePlayer;
+            var drone = GetControlledDrone(basePlayer);
             if (drone == null)
                 return;
 
             var storage = GetChildStorage(drone);
             if (storage == null)
-                return;
-
-            if (!player.HasPermission(PermissionDropItems))
                 return;
 
             DropItems(drone, storage, basePlayer);
@@ -281,20 +313,16 @@ namespace Oxide.Plugins
         [Command("dronestorage.ui.viewitems")]
         private void UICommandViewItems(IPlayer player)
         {
-            var basePlayer = player.Object as BasePlayer;
-            var computerStation = basePlayer.GetMounted() as ComputerStation;
-            if (computerStation == null)
+            if (player.IsServer || !player.HasPermission(PermissionViewItems))
                 return;
 
-            var drone = GetControlledDrone(computerStation);
+            var basePlayer = player.Object as BasePlayer;
+            var drone = GetControlledDrone(basePlayer);
             if (drone == null)
                 return;
 
             var storage = GetChildStorage(drone);
             if (storage == null)
-                return;
-
-            if (!player.HasPermission(PermissionViewItems))
                 return;
 
             if (basePlayer.inventory.loot.IsLooting() && basePlayer.inventory.loot.entitySource == storage)
@@ -452,6 +480,15 @@ namespace Oxide.Plugins
 
         private static Drone GetParentDrone(BaseEntity entity) =>
             entity.GetParentEntity() as Drone;
+
+        private static Drone GetControlledDrone(BasePlayer player)
+        {
+            var computerStation = player.GetMounted() as ComputerStation;
+            if (computerStation == null)
+                return null;
+
+            return GetControlledDrone(computerStation);
+        }
 
         private static Drone GetControlledDrone(ComputerStation computerStation) =>
             computerStation.currentlyControllingEnt.Get(serverside: true) as Drone;

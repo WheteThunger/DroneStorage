@@ -28,7 +28,7 @@ Players with the following permissions will see UI buttons while controlling a d
 - `dronestorage.viewitems` -- Allows viewing the stash contents.
 - `dronestorage.dropitems` -- Allows dropping the stash contents at the drone position.
 
-Note: Being able to view the stash shouldn't allow players to remove the items remotely, due to the computer screen blocking the clicks, but UI buttons added by other plugins can still be clicked, so those may allow removing the items remotely. Please report such plugins to me so that I can work with the maintainer to prevent this issue.
+Note: The drone controller is prevented from remotely moving items into or out of the stash container.
 
 ### Capacity permissions
 
