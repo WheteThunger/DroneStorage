@@ -81,6 +81,7 @@ namespace Oxide.Plugins
             UI.DestroyAll();
 
             _pluginInstance = null;
+            _pluginConfig = null;
         }
 
         private void OnServerInitialized()
