@@ -362,8 +362,6 @@ namespace Oxide.Plugins
                         {
                             RectTransform =
                             {
-                                // The computer station UI is inconsistent across resolutions.
-                                // Positioning relative to top center for best approximate fit.
                                 AnchorMin = _pluginConfig.UISettings.AnchorMin,
                                 AnchorMax = _pluginConfig.UISettings.AnchorMax,
                                 OffsetMin = _pluginConfig.UISettings.OffsetMin,
