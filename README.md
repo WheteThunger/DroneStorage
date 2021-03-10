@@ -3,8 +3,8 @@
 - Allows players to manually or automatically deploy a small stash to deployable drones (not delivery drones)
 - Allows drone controllers to remotely view the stash contents, as well as drop them at the drone position
 - Allows configuring stash capacity based on permissions of the drone owner
-- Attacking the stash deals damage to the drone instead
-- Destroying the drone drops the stash contents
+- Redirects damage from the stash to the drone
+- Drops the stash contents when the drone is destroyed
 
 ## Commands
 
