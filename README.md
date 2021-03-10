@@ -117,7 +117,7 @@ While controlling a drone, press the `Esc` key to make the cursor appear. When y
 
 #### OnDroneStorageDeploy
 
-- Called when this a stash container is about to be deployed onto a drone
+- Called when a stash container is about to be deployed onto a drone
 - Returning `false` will prevent the stash container from being deployed
 - Returning `null` will result in the default behavior
 
