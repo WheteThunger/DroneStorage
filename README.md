@@ -18,6 +18,7 @@
 - `dronestorage.deploy.free` -- Allows using the `dronestash` command for free (no stash item required).
 - `dronestorage.autodeploy` -- Drones deployed by players with this permission will automatically have a stash, free of charge.
   - Note: Reloading the plugin will automatically add stashes to existing drones owned by players with this permission.
+  - Not recommended if you want to allow players to deploy other attachments such as auto turrets since they are incompatible.
 
 Note: In order for manual or automatic deployment to work, the player will need permission to at least 1 storage capacity (see the Capacity permissions section below).
 
@@ -88,16 +89,6 @@ Default configuration:
 - `UISettings` -- Options to control the display of the UI.
   - Note: It is not possible to position the UI relative to the computer station UI consistently for all resolutions because modded UIs use scaling whereas the computer station UI uses the same fixed pixel offsets for all resolutions.
 
-## FAQ
-
-#### How do I get a drone?
-
-As of this writing (March 2021), RC drones are a deployable item named `drone`, but they do not appear naturally in any loot table, nor are they craftable. However, since they are simply an item, you can use plugins to add them to loot tables, kits, GUI shops, etc. Admins can also get them with the command `inventory.give drone 1`, or spawn one in directly with `spawn drone.deployed`.
-
-#### How do I click the UI buttons for viewing or dropping the stash contents?
-
-While controlling a drone, press the `Esc` key to make the cursor appear. When you want to control the drone again, simply click anywhere on the screen.
-
 ## Localization
 
 ```json
@@ -109,9 +100,24 @@ While controlling a drone, press the `Esc` key to make the cursor appear. When y
   "Error.NoDroneFound": "Error: No drone found.",
   "Error.NoStashItem": "Error: You need a stash to do that.",
   "Error.AlreadyHasStorage": "Error: That drone already has a stash.",
+  "Error.IncompatibleAttachment": "Error: That drone has an incompatible attachment.",
   "Error.DeployFailed": "Error: Failed to deploy stash."
 }
 ```
+
+## FAQ
+
+#### How do I get a drone?
+
+As of this writing (March 2021), RC drones are a deployable item named `drone`, but they do not appear naturally in any loot table, nor are they craftable. However, since they are simply an item, you can use plugins to add them to loot tables, kits, GUI shops, etc. Admins can also get them with the command `inventory.give drone 1`, or spawn one in directly with `spawn drone.deployed`.
+
+#### How do I remote-control a drone?
+
+If a player has building privilege, they can pull out a hammer and set the ID of the drone. They can then enter that ID at a computer station and select it to start controlling the drone. Controls are `W`/`A`/`S`/`D` to move, `shift` (sprint) to go up, `ctrl` (duck) to go down, and mouse to steer.
+
+#### How do I click the UI buttons for viewing or dropping the stash contents?
+
+While controlling a drone, press the `Esc` key to make the cursor appear. When you want to control the drone again, simply click anywhere on the screen.
 
 ## Developer Hooks
 

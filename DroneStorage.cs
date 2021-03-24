@@ -11,7 +11,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Drone Storage", "WhiteThunder", "1.0.0")]
+    [Info("Drone Storage", "WhiteThunder", "1.0.1")]
     [Description("Allows players to deploy a small stash to RC drones.")]
     internal class DroneStorage : CovalencePlugin
     {
@@ -33,6 +33,8 @@ namespace Oxide.Plugins
         private const string DropBagPrefab = "assets/prefabs/misc/item drop/item_drop.prefab";
 
         private const int StashItemId = -369760990;
+
+        private const BaseEntity.Slot StorageSlot = BaseEntity.Slot.UpperModifier;
 
         private const string MaximumCapacityPanelName = "genericlarge";
         private const int MaximumCapacity = 42;
@@ -173,11 +175,20 @@ namespace Oxide.Plugins
             if (player == null)
                 return;
 
-            if (permission.UserHasPermission(player.UserIDString, PermissionDeploy)
-                && !permission.UserHasPermission(player.UserIDString, PermissionAutoDeploy)
-                && GetPlayerAllowedCapacity(player.userID) > 0
-                && UnityEngine.Random.Range(0, 100) < _pluginConfig.TipChance)
-                ChatMessage(player, "Tip.DeployCommand");
+            NextTick(() =>
+            {
+                // Delay this check to allow time for other plugins to deploy an entity to this slot.
+                if (drone == null || player == null || drone.GetSlot(StorageSlot) != null)
+                    return;
+
+                if (permission.UserHasPermission(player.UserIDString, PermissionDeploy)
+                    && !permission.UserHasPermission(player.UserIDString, PermissionAutoDeploy)
+                    && GetPlayerAllowedCapacity(player.userID) > 0
+                    && UnityEngine.Random.Range(0, 100) < _pluginConfig.TipChance)
+                {
+                    ChatMessage(player, "Tip.DeployCommand");
+                }
+            });
         }
 
         private ItemContainer.CanAcceptResult? CanAcceptItem(ItemContainer container, Item item)
@@ -272,6 +283,12 @@ namespace Oxide.Plugins
             if (GetDroneStorage(drone) != null)
             {
                 ReplyToPlayer(player, "Error.AlreadyHasStorage");
+                return;
+            }
+
+            if (drone.GetSlot(StorageSlot) != null)
+            {
+                ReplyToPlayer(player, "Error.IncompatibleAttachment");
                 return;
             }
 
@@ -528,6 +545,7 @@ namespace Oxide.Plugins
             container.Spawn();
 
             SetupDroneStorage(container, capacity);
+            drone.SetSlot(StorageSlot, container);
 
             Effect.server.Run(StorageDeployEffectPrefab, container.transform.position);
             Interface.CallHook("OnDroneStorageDeployed", drone, container, deployer);
@@ -623,7 +641,8 @@ namespace Oxide.Plugins
 
         private void TryAutoDeployStorage(Drone drone)
         {
-            if (!permission.UserHasPermission(drone.OwnerID.ToString(), PermissionAutoDeploy))
+            if (drone.GetSlot(StorageSlot) != null
+                || !permission.UserHasPermission(drone.OwnerID.ToString(), PermissionAutoDeploy))
                 return;
 
             var capacity = GetPlayerAllowedCapacity(drone.OwnerID);
@@ -858,6 +877,7 @@ namespace Oxide.Plugins
                 ["Error.NoDroneFound"] = "Error: No drone found.",
                 ["Error.NoStashItem"] = "Error: You need a stash to do that.",
                 ["Error.AlreadyHasStorage"] = "Error: That drone already has a stash.",
+                ["Error.IncompatibleAttachment"] = "Error: That drone has an incompatible attachment.",
                 ["Error.DeployFailed"] = "Error: Failed to deploy stash.",
             }, this, "en");
         }
