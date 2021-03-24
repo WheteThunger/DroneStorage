@@ -128,7 +128,7 @@ While controlling a drone, press the `Esc` key to make the cursor appear. When y
 - Returning `null` will result in the default behavior
 
 ```csharp
-object OnDroneStorageDeploy(Drone drone, BasePlayer optionalDeployer)
+bool? OnDroneStorageDeploy(Drone drone, BasePlayer optionalDeployer)
 ```
 
 Note: The `BasePlayer` argument will be `null` if the container is being deployed automatically (not via the `dronestash` command).
@@ -151,7 +151,7 @@ Note: The `BasePlayer` argument will be `null` if the container was deployed aut
 - Returning `null` will result in the default behavior
 
 ```csharp
-object OnDroneStorageDrop(Drone drone, StorageContainer stash, BasePlayer optionalPilot)
+bool? OnDroneStorageDrop(Drone drone, StorageContainer stash, BasePlayer optionalPilot)
 ```
 
 Note: The `BasePlayer` argument will be `null` if the stash contents are being dropped because the drone was destroyed (not via the pilot intentionally dropping it).
