@@ -6,6 +6,13 @@
 - Redirects damage from the stash to the drone
 - Drops the stash contents when the drone is destroyed
 
+## Recommended compatible plugins
+
+- [Drone Hover](https://umod.org/plugins/drone-hover) -- Allows RC drones to hover in place while not being controlled.
+- [Drone Lights](https://umod.org/plugins/drone-lights) -- Adds controllable search lights to RC drones.
+- [Drone Turrets](https://umod.org/plugins/drone-turrets) -- Allows players to deploy auto turrets to RC drones.
+- [RC Identifier Fix](https://umod.org/plugins/rc-identifier-fix) -- Auto updates RC identifiers saved in computer stations to refer to the correct entity.
+
 ## Commands
 
 - `dronestash` -- Deploys a stash onto the drone the player is looking at, consuming a stash item from their inventory unless they have permission for free stashes.
