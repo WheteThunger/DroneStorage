@@ -2,6 +2,7 @@
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Serialization;
 using Oxide.Core;
+using Oxide.Core.Plugins;
 using Oxide.Core.Libraries.Covalence;
 using Oxide.Game.Rust.Cui;
 using System;
@@ -11,11 +12,14 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Drone Storage", "WhiteThunder", "1.0.1")]
+    [Info("Drone Storage", "WhiteThunder", "1.0.2")]
     [Description("Allows players to deploy a small stash to RC drones.")]
     internal class DroneStorage : CovalencePlugin
     {
         #region Fields
+
+        [PluginReference]
+        private Plugin DroneSettings;
 
         private static DroneStorage _pluginInstance;
         private static Configuration _pluginConfig;
@@ -94,6 +98,7 @@ namespace Oxide.Plugins
                 if (drone == null || !IsDroneEligible(drone))
                     continue;
 
+                RefreshDronSettingsProfile(drone);
                 AddOrUpdateStorage(drone);
             }
 
@@ -106,6 +111,15 @@ namespace Oxide.Plugins
                 return;
 
             TryAutoDeployStorage(drone);
+        }
+
+        private void OnEntityKill(StorageContainer storage)
+        {
+            var drone = GetParentDrone(storage);
+            if (drone == null)
+                return;
+
+            drone.Invoke(() => RefreshDronSettingsProfile(drone), 0);
         }
 
         private void OnEntityDeath(Drone drone)
@@ -247,6 +261,12 @@ namespace Oxide.Plugins
                 return false;
 
             return null;
+        }
+
+        // This hook is exposed by plugin: Drone Settings (DroneSettings).
+        private string OnDroneTypeDetermine(Drone drone)
+        {
+            return GetDroneStorage(drone) != null ? Name : null;
         }
 
         #endregion
@@ -488,6 +508,11 @@ namespace Oxide.Plugins
             return hookResult is bool && (bool)hookResult == false;
         }
 
+        private void RefreshDronSettingsProfile(Drone drone)
+        {
+            DroneSettings?.Call("API_RefreshDroneProfile", drone);
+        }
+
         private static string GetCapacityPermission(int capacity) =>
             $"{PermissionCapacityPrefix}.{capacity}";
 
@@ -530,27 +555,6 @@ namespace Oxide.Plugins
                 return;
 
             entity.ClientRPCPlayer(null, player, "HitNotify");
-        }
-
-        private static StorageContainer TryDeployStorage(Drone drone, int capacity, BasePlayer deployer = null)
-        {
-            if (DeployStorageWasBlocked(drone, deployer))
-                return null;
-
-            var container = GameManager.server.CreateEntity(ContainerPrefab, StorageLocalPosition, StorageLocalRotation) as StorageContainer;
-            if (container == null)
-                return null;
-
-            container.SetParent(drone);
-            container.Spawn();
-
-            SetupDroneStorage(container, capacity);
-            drone.SetSlot(StorageSlot, container);
-
-            Effect.server.Run(StorageDeployEffectPrefab, container.transform.position);
-            Interface.CallHook("OnDroneStorageDeployed", drone, container, deployer);
-
-            return container;
         }
 
         private static void SetupDroneStorage(StorageContainer container, int capacity)
@@ -623,6 +627,28 @@ namespace Oxide.Plugins
 
             // HACK: Send empty respawn information to fully close the player inventory (close the storage).
             player.ClientRPCPlayer(null, player, "OnRespawnInformation");
+        }
+
+        private StorageContainer TryDeployStorage(Drone drone, int capacity, BasePlayer deployer = null)
+        {
+            if (DeployStorageWasBlocked(drone, deployer))
+                return null;
+
+            var container = GameManager.server.CreateEntity(ContainerPrefab, StorageLocalPosition, StorageLocalRotation) as StorageContainer;
+            if (container == null)
+                return null;
+
+            container.SetParent(drone);
+            container.Spawn();
+
+            SetupDroneStorage(container, capacity);
+            drone.SetSlot(StorageSlot, container);
+
+            Effect.server.Run(StorageDeployEffectPrefab, container.transform.position);
+            Interface.CallHook("OnDroneStorageDeployed", drone, container, deployer);
+            RefreshDronSettingsProfile(drone);
+
+            return container;
         }
 
         private void AddOrUpdateStorage(Drone drone)
@@ -834,8 +860,9 @@ namespace Oxide.Plugins
                     SaveConfig();
                 }
             }
-            catch
+            catch (Exception e)
             {
+                LogError(e.Message);
                 LogWarning($"Configuration file {Name}.json is invalid; using defaults");
                 LoadDefaultConfig();
             }
