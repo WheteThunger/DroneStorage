@@ -110,7 +110,15 @@ namespace Oxide.Plugins
             if (!IsDroneEligible(drone))
                 return;
 
-            TryAutoDeployStorage(drone);
+            // Delay to give other plugins an opportunity to deploy an attachment,
+            // or to save the drone id to block attachments.
+            NextTick(() =>
+            {
+                if (drone == null)
+                    return;
+
+                TryAutoDeployStorage(drone);
+            });
         }
 
         private void OnEntityKill(StorageContainer storage)
@@ -667,7 +675,8 @@ namespace Oxide.Plugins
 
         private void TryAutoDeployStorage(Drone drone)
         {
-            if (drone.GetSlot(StorageSlot) != null
+            if (drone.OwnerID == 0
+                || drone.GetSlot(StorageSlot) != null
                 || !permission.UserHasPermission(drone.OwnerID.ToString(), PermissionAutoDeploy))
                 return;
 

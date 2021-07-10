@@ -1,20 +1,16 @@
 ## Features
 
-- Allows players to manually or automatically deploy a small stash to deployable drones (not delivery drones)
+- Allows players to manually or automatically deploy a small stash to RC drones
 - Allows drone controllers to remotely view the stash contents, as well as drop them at the drone position
 - Allows configuring stash capacity based on permissions of the drone owner
 - Redirects damage from the stash to the drone
 - Drops the stash contents when the drone is destroyed
 
-## Commands
-
-- `dronestash` -- Deploys a stash onto the drone the player is looking at, consuming a stash item from their inventory unless they have permission for free stashes.
-
 ## Permissions
 
 ### Deployment permissions
 
-- `dronestorage.deploy` -- Required to use the `dronestash` command.
+- `dronestorage.deploy` -- Allows the player to deploy a stash onto a drone using the `dronestash` command.
 - `dronestorage.deploy.free` -- Allows using the `dronestash` command for free (no stash item required).
 - `dronestorage.autodeploy` -- Drones deployed by players with this permission will automatically have a stash, free of charge.
   - Note: Reloading the plugin will automatically add stashes to existing drones owned by players with this permission.
@@ -44,6 +40,10 @@ The following permissions come with this plugin's **default configuration**. Gra
 - `dronestorage.capacity.42` -- 7 rows
 
 You can add more capacity amounts in the plugin configuration (`CapacityAmounts`), and the plugin will automatically generate permissions of the format `dronestorage.capacity.<amount>` when reloaded. If a player has permission to multiple capacity amounts, the highest will apply.
+
+## Commands
+
+- `dronestash` -- Deploys a stash onto the drone the player is looking at, consuming a stash item from their inventory unless they have permission for free stashes.
 
 ## Configuration
 
@@ -134,46 +134,46 @@ While controlling a drone, press the `Esc` key to make the cursor appear. When y
 
 #### OnDroneStorageDeploy
 
-- Called when a stash container is about to be deployed onto a drone
-- Returning `false` will prevent the stash container from being deployed
-- Returning `null` will result in the default behavior
-
 ```csharp
 bool? OnDroneStorageDeploy(Drone drone, BasePlayer optionalDeployer)
 ```
+
+- Called when a stash container is about to be deployed onto a drone
+- Returning `false` will prevent the stash container from being deployed
+- Returning `null` will result in the default behavior
 
 Note: The `BasePlayer` argument will be `null` if the container is being deployed automatically (not via the `dronestash` command).
 
 #### OnDroneStorageDeployed
 
-- Called after a stash container has been deployed onto a drone
-- No return behavior
-
 ```csharp
 void OnDroneStorageDeployed(Drone drone, StorageContainer stash, BasePlayer optionalDeployer)
 ```
+
+- Called after a stash container has been deployed onto a drone
+- No return behavior
 
 Note: The `BasePlayer` argument will be `null` if the container was deployed automatically (not via the `dronestash` command).
 
 #### OnDroneStorageDrop
 
-- Called when a drone's stash contents are about to be dropped
-- Returning `false` will prevent the stash contents from being dropped
-- Returning `null` will result in the default behavior
-
 ```csharp
 bool? OnDroneStorageDrop(Drone drone, StorageContainer stash, BasePlayer optionalPilot)
 ```
+
+- Called when a drone's stash contents are about to be dropped
+- Returning `false` will prevent the stash contents from being dropped
+- Returning `null` will result in the default behavior
 
 Note: The `BasePlayer` argument will be `null` if the stash contents are being dropped because the drone was destroyed (not via the pilot intentionally dropping it).
 
 #### OnDroneStorageDropped
 
-- Called after a drone's stash contents have been dropped
-- No return behavior
-
 ```csharp
 void OnDroneStorageDropped(Drone drone, StorageContainer stash, DroppedItemContainer dropContainer, BasePlayer optionalPilot)
 ```
+
+- Called after a drone's stash contents have been dropped
+- No return behavior
 
 Note: The `BasePlayer` argument will be `null` if the stash contents were dropped because the drone was destroyed (not via the pilot intentionally dropping it).
