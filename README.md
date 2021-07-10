@@ -97,6 +97,7 @@ Default configuration:
   "UI.Button.DropItems": "Drop Items",
   "Tip.DeployCommand": "Tip: Look at the drone and run <color=yellow>/dronestash</color> to deploy a stash.",
   "Error.NoPermission": "You don't have permission to do that.",
+  "Error.BuildingBlocked": "Error: Cannot do that while building blocked.",
   "Error.NoDroneFound": "Error: No drone found.",
   "Error.NoStashItem": "Error: You need a stash to do that.",
   "Error.AlreadyHasStorage": "Error: That drone already has a stash.",

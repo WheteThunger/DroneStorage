@@ -208,7 +208,7 @@ namespace Oxide.Plugins
                     && GetPlayerAllowedCapacity(player.userID) > 0
                     && UnityEngine.Random.Range(0, 100) < _pluginConfig.TipChance)
                 {
-                    ChatMessage(player, "Tip.DeployCommand");
+                    ChatMessage(player, Lang.TipDeployCommand);
                 }
             });
         }
@@ -289,7 +289,7 @@ namespace Oxide.Plugins
 
             if (!player.HasPermission(PermissionDeploy))
             {
-                ReplyToPlayer(player, "Error.NoPermission");
+                ReplyToPlayer(player, Lang.ErrorNoPermission);
                 return;
             }
 
@@ -297,39 +297,45 @@ namespace Oxide.Plugins
             var drone = GetLookEntity(basePlayer, 3) as Drone;
             if (drone == null || !IsDroneEligible(drone))
             {
-                ReplyToPlayer(player, "Error.NoDroneFound");
+                ReplyToPlayer(player, Lang.ErrorNoDroneFound);
+                return;
+            }
+
+            if (!basePlayer.CanBuild() || !basePlayer.CanBuild(drone.WorldSpaceBounds()))
+            {
+                ReplyToPlayer(player, Lang.ErrorBuildingBlocked);
                 return;
             }
 
             var allowedCapacity = GetPlayerAllowedCapacity(basePlayer.userID);
             if (allowedCapacity <= 0)
             {
-                ReplyToPlayer(player, "Error.NoPermission");
+                ReplyToPlayer(player, Lang.ErrorNoPermission);
                 return;
             }
 
             if (GetDroneStorage(drone) != null)
             {
-                ReplyToPlayer(player, "Error.AlreadyHasStorage");
+                ReplyToPlayer(player, Lang.ErrorAlreadyHasStorage);
                 return;
             }
 
             if (drone.GetSlot(StorageSlot) != null)
             {
-                ReplyToPlayer(player, "Error.IncompatibleAttachment");
+                ReplyToPlayer(player, Lang.ErrorIncompatibleAttachment);
                 return;
             }
 
             var isFree = player.HasPermission(PermissionDeployFree);
             if (!isFree && basePlayer.inventory.FindItemID(StashItemId) == null)
             {
-                ReplyToPlayer(player, "Error.NoStashItem");
+                ReplyToPlayer(player, Lang.ErrorNoStashItem);
                 return;
             }
 
             if (TryDeployStorage(drone, allowedCapacity, basePlayer) == null)
             {
-                ReplyToPlayer(player, "Error.DeployFailed");
+                ReplyToPlayer(player, Lang.ErrorDeployFailed);
             }
             else if (!isFree)
             {
@@ -433,7 +439,7 @@ namespace Oxide.Plugins
                         {
                             Text =
                             {
-                                Text = _pluginInstance.GetMessage(player.UserIDString, "UI.Button.ViewItems"),
+                                Text = _pluginInstance.GetMessage(player.UserIDString, Lang.UIButtonViewItems),
                                 Align = TextAnchor.MiddleCenter,
                                 Color = _buttonSettings.ViewButtonTextColor,
                                 FontSize = _buttonSettings.TextSize
@@ -463,7 +469,7 @@ namespace Oxide.Plugins
                         {
                             Text =
                             {
-                                Text = _pluginInstance.GetMessage(player.UserIDString, "UI.Button.DropItems"),
+                                Text = _pluginInstance.GetMessage(player.UserIDString, Lang.UIButtonDropItems),
                                 Align = TextAnchor.MiddleCenter,
                                 Color = _buttonSettings.DropButtonTextColor,
                                 FontSize = _buttonSettings.TextSize
@@ -902,19 +908,34 @@ namespace Oxide.Plugins
             return args.Length > 0 ? string.Format(message, args) : message;
         }
 
+        private class Lang
+        {
+            public const string UIButtonViewItems = "UI.Button.ViewItems";
+            public const string UIButtonDropItems = "UI.Button.DropItems";
+            public const string TipDeployCommand = "Tip.DeployCommand";
+            public const string ErrorNoPermission = "Error.NoPermission";
+            public const string ErrorBuildingBlocked = "Error.BuildingBlocked";
+            public const string ErrorNoDroneFound = "Error.NoDroneFound";
+            public const string ErrorNoStashItem = "Error.NoStashItem";
+            public const string ErrorAlreadyHasStorage = "Error.AlreadyHasStorage";
+            public const string ErrorIncompatibleAttachment = "Error.IncompatibleAttachment";
+            public const string ErrorDeployFailed = "Error.DeployFailed";
+        }
+
         protected override void LoadDefaultMessages()
         {
             lang.RegisterMessages(new Dictionary<string, string>
             {
-                ["UI.Button.ViewItems"] = "View Items",
-                ["UI.Button.DropItems"] = "Drop Items",
-                ["Tip.DeployCommand"] = "Tip: Look at the drone and run <color=yellow>/dronestash</color> to deploy a stash.",
-                ["Error.NoPermission"] = "You don't have permission to do that.",
-                ["Error.NoDroneFound"] = "Error: No drone found.",
-                ["Error.NoStashItem"] = "Error: You need a stash to do that.",
-                ["Error.AlreadyHasStorage"] = "Error: That drone already has a stash.",
-                ["Error.IncompatibleAttachment"] = "Error: That drone has an incompatible attachment.",
-                ["Error.DeployFailed"] = "Error: Failed to deploy stash.",
+                [Lang.UIButtonViewItems] = "View Items",
+                [Lang.UIButtonDropItems] = "Drop Items",
+                [Lang.TipDeployCommand] = "Tip: Look at the drone and run <color=yellow>/dronestash</color> to deploy a stash.",
+                [Lang.ErrorNoPermission] = "You don't have permission to do that.",
+                [Lang.ErrorBuildingBlocked] = "Error: Cannot do that while building blocked.",
+                [Lang.ErrorNoDroneFound] = "Error: No drone found.",
+                [Lang.ErrorNoStashItem] = "Error: You need a stash to do that.",
+                [Lang.ErrorAlreadyHasStorage] = "Error: That drone already has a stash.",
+                [Lang.ErrorIncompatibleAttachment] = "Error: That drone has an incompatible attachment.",
+                [Lang.ErrorDeployFailed] = "Error: Failed to deploy stash.",
             }, this, "en");
         }
 
