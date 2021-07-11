@@ -1,8 +1,9 @@
 ## Features
 
-- Allows players to manually or automatically deploy a small stash to RC drones
-- Allows drone controllers to remotely view the stash contents, as well as drop them at the drone position
+- Allows players to deploy a small stash to RC drones
+- Allows the stash to receive a lock if its owner has permission
 - Allows configuring stash capacity based on permissions of the drone owner
+- Allows drone controllers to remotely view the stash contents, drop them at the drone position, and lock or unlock the stash
 - Redirects damage from the stash to the drone
 - Drops the stash contents when the drone is destroyed
 
@@ -25,6 +26,7 @@ Players with the following permissions will see UI buttons while controlling a d
 
 - `dronestorage.viewitems` -- Allows viewing the stash contents.
 - `dronestorage.dropitems` -- Allows dropping the stash contents at the drone position.
+- `dronestorage.togglelock` -- Allows locking and unlocking the stash, if it has an attached lock.
 
 Note: The drone controller is prevented from remotely moving items into or out of the stash container.
 
@@ -77,7 +79,11 @@ Default configuration:
       "ViewButtonColor": "0.44 0.54 0.26 1",
       "ViewButtonTextColor": "0.97 0.92 0.88 1",
       "DropButtonColor": "0.77 0.24 0.16 1",
-      "DropButtonTextColor": "0.97 0.92 0.88 1"
+      "DropButtonTextColor": "0.97 0.92 0.88 1",
+      "LockButtonColor": "0.7 0.3 0 1",
+      "LockButtonTextColor": "0.97 0.92 0.88 1",
+      "UnlockButtonColor": "0.7 0.3 0 1",
+      "UnlockButtonTextColor": "0.97 0.92 0.88 1"
     }
   }
 }
@@ -96,6 +102,8 @@ Default configuration:
 {
   "UI.Button.ViewItems": "View Items",
   "UI.Button.DropItems": "Drop Items",
+  "UI.Button.LockStorage": "Lock",
+  "UI.Button.UnlockStorage": "Unlock",
   "Tip.DeployCommand": "Tip: Look at the drone and run <color=yellow>/dronestash</color> to deploy a stash.",
   "Error.NoPermission": "You don't have permission to do that.",
   "Error.BuildingBlocked": "Error: Cannot do that while building blocked.",
@@ -111,7 +119,7 @@ Default configuration:
 
 #### How do I get a drone?
 
-As of this writing (March 2021), RC drones are a deployable item named `drone`, but they do not appear naturally in any loot table, nor are they craftable. However, since they are simply an item, you can use plugins to add them to loot tables, kits, GUI shops, etc. Admins can also get them with the command `inventory.give drone 1`, or spawn one in directly with `spawn drone.deployed`.
+As of this writing, RC drones are a deployable item named `drone`, but they do not appear naturally in any loot table, nor are they craftable. However, since they are simply an item, you can use plugins to add them to loot tables, kits, GUI shops, etc. Admins can also get them with the command `inventory.give drone 1`, or spawn one in directly with `spawn drone.deployed`.
 
 #### How do I remote-control a drone?
 

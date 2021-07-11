@@ -30,12 +30,15 @@ namespace Oxide.Plugins
         private const string PermissionLockable = "dronestorage.lockable";
         private const string PermissionViewItems = "dronestorage.viewitems";
         private const string PermissionDropItems = "dronestorage.dropitems";
+        private const string PermissionToggleLock = "dronestorage.togglelock";
         private const string PermissionCapacityPrefix = "dronestorage.capacity";
 
         // HAB storage is the best since it has an accurate collider, decent rendering distance and is a StorageContainer.
         private const string StoragePrefab = "assets/prefabs/deployable/hot air balloon/subents/hab_storage.prefab";
         private const string StorageDeployEffectPrefab = "assets/prefabs/deployable/small stash/effects/small-stash-deploy.prefab";
         private const string DropBagPrefab = "assets/prefabs/misc/item drop/item_drop.prefab";
+        private const string LockEffectPrefab = "assets/prefabs/locks/keypad/effects/lock.code.lock.prefab";
+        private const string UnlockEffectPrefab = "assets/prefabs/locks/keypad/effects/lock.code.unlock.prefab";
 
         private const int StashItemId = -369760990;
 
@@ -94,6 +97,7 @@ namespace Oxide.Plugins
             permission.RegisterPermission(PermissionLockable, this);
             permission.RegisterPermission(PermissionViewItems, this);
             permission.RegisterPermission(PermissionDropItems, this);
+            permission.RegisterPermission(PermissionToggleLock, this);
 
             foreach (var capacityAmount in _pluginConfig.CapacityAmounts)
                 permission.RegisterPermission(GetCapacityPermission(capacityAmount), this);
@@ -202,7 +206,7 @@ namespace Oxide.Plugins
                 return;
 
             UI.Destroy(player);
-            UI.Create(player);
+            UI.Create(player, storage);
             _droneControllerTracker.Add(player.userID);
         }
 
@@ -398,37 +402,13 @@ namespace Oxide.Plugins
             }
         }
 
-        [Command("dronestorage.ui.dropitems")]
-        private void UICommandDropItems(IPlayer player)
-        {
-            if (player.IsServer || !player.HasPermission(PermissionDropItems))
-                return;
-
-            var basePlayer = player.Object as BasePlayer;
-            var drone = GetControlledDrone(basePlayer);
-            if (drone == null)
-                return;
-
-            var storage = GetDroneStorage(drone);
-            if (storage == null)
-                return;
-
-            DropItems(drone, storage, basePlayer);
-        }
-
         [Command("dronestorage.ui.viewitems")]
         private void UICommandViewItems(IPlayer player)
         {
-            if (player.IsServer || !player.HasPermission(PermissionViewItems))
-                return;
-
-            var basePlayer = player.Object as BasePlayer;
-            var drone = GetControlledDrone(basePlayer);
-            if (drone == null)
-                return;
-
-            var storage = GetDroneStorage(drone);
-            if (storage == null)
+            BasePlayer basePlayer;
+            Drone drone;
+            StorageContainer storage;
+            if (!TryGetControlledStorage(player, PermissionViewItems, out basePlayer, out drone, out storage))
                 return;
 
             if (basePlayer.inventory.loot.IsLooting() && basePlayer.inventory.loot.entitySource == storage)
@@ -438,6 +418,56 @@ namespace Oxide.Plugins
             }
 
             storage.PlayerOpenLoot(basePlayer, storage.panelName, doPositionChecks: false);
+        }
+
+        [Command("dronestorage.ui.dropitems")]
+        private void UICommandDropItems(IPlayer player)
+        {
+            BasePlayer basePlayer;
+            Drone drone;
+            StorageContainer storage;
+            if (!TryGetControlledStorage(player, PermissionDropItems, out basePlayer, out drone, out storage))
+                return;
+
+            DropItems(drone, storage, basePlayer);
+        }
+
+        [Command("dronestorage.ui.lockstorage")]
+        private void UICommandLockStorage(IPlayer player)
+        {
+            BasePlayer basePlayer;
+            Drone drone;
+            StorageContainer storage;
+            if (!TryGetControlledStorage(player, PermissionToggleLock, out basePlayer, out drone, out storage))
+                return;
+
+            var baseLock = GetLock(storage);
+            if (baseLock == null || baseLock.IsLocked())
+                return;
+
+            baseLock.SetFlag(BaseEntity.Flags.Locked, true);
+            Effect.server.Run(LockEffectPrefab, baseLock, 0, Vector3.zero, Vector3.zero);
+            UI.Destroy(basePlayer);
+            UI.Create(basePlayer, storage);
+        }
+
+        [Command("dronestorage.ui.unlockstorage")]
+        private void UICommandUnlockStorage(IPlayer player)
+        {
+            BasePlayer basePlayer;
+            Drone drone;
+            StorageContainer storage;
+            if (!TryGetControlledStorage(player, PermissionToggleLock, out basePlayer, out drone, out storage))
+                return;
+
+            var baseLock = GetLock(storage);
+            if (baseLock == null || !baseLock.IsLocked())
+                return;
+
+            baseLock.SetFlag(BaseEntity.Flags.Locked, false);
+            Effect.server.Run(UnlockEffectPrefab, baseLock, 0, Vector3.zero, Vector3.zero);
+            UI.Destroy(basePlayer);
+            UI.Create(basePlayer, storage);
         }
 
         #endregion
@@ -458,7 +488,7 @@ namespace Oxide.Plugins
                 return offsetXMin;
             }
 
-            public static void Create(BasePlayer player)
+            public static void Create(BasePlayer player, StorageContainer storage)
             {
                 var cuiElements = new CuiElementContainer
                 {
@@ -478,16 +508,23 @@ namespace Oxide.Plugins
                     }
                 };
 
+                var baseLock = GetLock(storage);
+
                 var iPlayer = player.IPlayer;
                 var showViewItemsButton = iPlayer.HasPermission(PermissionViewItems);
                 var showDropItemsButton = iPlayer.HasPermission(PermissionDropItems);
+                var showToggleLockButton = baseLock != null && iPlayer.HasPermission(PermissionToggleLock);
 
-                var totalButtons = Convert.ToInt32(showViewItemsButton) + Convert.ToInt32(showDropItemsButton);
+                var totalButtons = Convert.ToInt32(showViewItemsButton)
+                    + Convert.ToInt32(showDropItemsButton)
+                    + Convert.ToInt32(showToggleLockButton);
+
                 var currentButtonIndex = 0;
 
                 if (showViewItemsButton)
                 {
                     var offsetXMin = GetButtonOffsetX(currentButtonIndex++, totalButtons);
+
                     cuiElements.Add(
                         new CuiButton
                         {
@@ -518,6 +555,7 @@ namespace Oxide.Plugins
                 if (showDropItemsButton)
                 {
                     var offsetXMin = GetButtonOffsetX(currentButtonIndex++, totalButtons);
+
                     cuiElements.Add(
                         new CuiButton
                         {
@@ -532,6 +570,39 @@ namespace Oxide.Plugins
                             {
                                 Color = _buttonSettings.DropButtonColor,
                                 Command = "dronestorage.ui.dropitems",
+                            },
+                            RectTransform =
+                            {
+                                AnchorMin = "0 0",
+                                AnchorMax = "0 0",
+                                OffsetMin = $"{offsetXMin} 0",
+                                OffsetMax = $"{offsetXMin + _buttonSettings.Width} {_buttonSettings.Height}"
+                            }
+                        },
+                        Name
+                    );
+                }
+
+                if (showToggleLockButton)
+                {
+                    var isLocked = baseLock.IsLocked();
+                    var offsetXMin = GetButtonOffsetX(currentButtonIndex++, totalButtons);
+                    var subCommand = isLocked ? "unlockstorage" : "lockstorage";
+
+                    cuiElements.Add(
+                        new CuiButton
+                        {
+                            Text =
+                            {
+                                Text = _pluginInstance.GetMessage(player.UserIDString, isLocked ? Lang.UIButtonUnlockStorage : Lang.UIButtonLockStorage),
+                                Align = TextAnchor.MiddleCenter,
+                                Color = isLocked ? _buttonSettings.UnlockButtonTextColor : _buttonSettings.LockButtonTextColor,
+                                FontSize = _buttonSettings.TextSize
+                            },
+                            Button =
+                            {
+                                Color = isLocked ? _buttonSettings.UnlockButtonColor : _buttonSettings.LockButtonColor,
+                                Command = $"dronestorage.ui.{subCommand}",
                             },
                             RectTransform =
                             {
@@ -632,16 +703,8 @@ namespace Oxide.Plugins
             return null;
         }
 
-        private static T GetChildOfType<T>(BaseEntity entity) where T : BaseEntity
-        {
-            foreach (var child in entity.children)
-            {
-                var childOfType = child as T;
-                if (childOfType != null)
-                    return childOfType;
-            }
-            return null;
-        }
+        private static BaseLock GetLock(StorageContainer storage) =>
+            storage.GetSlot(BaseEntity.Slot.Lock) as BaseLock;
 
         private static void HitNotify(BaseEntity entity, HitInfo info)
         {
@@ -713,6 +776,24 @@ namespace Oxide.Plugins
 
             // HACK: Send empty respawn information to fully close the player inventory (close the storage).
             player.ClientRPCPlayer(null, player, "OnRespawnInformation");
+        }
+
+        private bool TryGetControlledStorage(IPlayer player, string perm, out BasePlayer basePlayer, out Drone drone, out StorageContainer storage)
+        {
+            basePlayer = null;
+            drone = null;
+            storage = null;
+
+            if (player.IsServer || !player.HasPermission(perm))
+                return false;
+
+            basePlayer = player.Object as BasePlayer;
+            drone = GetControlledDrone(basePlayer);
+            if (drone == null)
+                return false;
+
+            storage = GetDroneStorage(drone);
+            return storage != null;
         }
 
         private bool IsStorageLockable(StorageContainer storage) =>
@@ -911,6 +992,18 @@ namespace Oxide.Plugins
 
             [JsonProperty("DropButtonTextColor")]
             public string DropButtonTextColor = "0.97 0.92 0.88 1";
+
+            [JsonProperty("LockButtonColor")]
+            public string LockButtonColor = "0.7 0.3 0 1";
+
+            [JsonProperty("LockButtonTextColor")]
+            public string LockButtonTextColor = "0.97 0.92 0.88 1";
+
+            [JsonProperty("UnlockButtonColor")]
+            public string UnlockButtonColor = "0.7 0.3 0 1";
+
+            [JsonProperty("UnlockButtonTextColor")]
+            public string UnlockButtonTextColor = "0.97 0.92 0.88 1";
         }
 
         private Configuration GetDefaultConfig() => new Configuration();
@@ -1044,6 +1137,8 @@ namespace Oxide.Plugins
         {
             public const string UIButtonViewItems = "UI.Button.ViewItems";
             public const string UIButtonDropItems = "UI.Button.DropItems";
+            public const string UIButtonLockStorage = "UI.Button.LockStorage";
+            public const string UIButtonUnlockStorage = "UI.Button.UnlockStorage";
             public const string TipDeployCommand = "Tip.DeployCommand";
             public const string ErrorNoPermission = "Error.NoPermission";
             public const string ErrorBuildingBlocked = "Error.BuildingBlocked";
@@ -1060,6 +1155,8 @@ namespace Oxide.Plugins
             {
                 [Lang.UIButtonViewItems] = "View Items",
                 [Lang.UIButtonDropItems] = "Drop Items",
+                [Lang.UIButtonLockStorage] = "Lock",
+                [Lang.UIButtonUnlockStorage] = "Unlock",
                 [Lang.TipDeployCommand] = "Tip: Look at the drone and run <color=yellow>/dronestash</color> to deploy a stash.",
                 [Lang.ErrorNoPermission] = "You don't have permission to do that.",
                 [Lang.ErrorBuildingBlocked] = "Error: Cannot do that while building blocked.",
