@@ -126,6 +126,16 @@ namespace Oxide.Plugins
                 AddOrUpdateStorage(drone);
             }
 
+            foreach (var player in BasePlayer.activePlayerList)
+            {
+                ComputerStation computerStation;
+                var drone = GetControlledDrone(player, out computerStation);
+                if (drone == null || GetDroneStorage(drone) == null)
+                    continue;
+
+                OnBookmarkControlStarted(computerStation, player, string.Empty, drone);
+            }
+
             Subscribe(nameof(OnEntitySpawned));
         }
 
@@ -185,15 +195,13 @@ namespace Oxide.Plugins
             return true;
         }
 
-        private void OnBookmarkControlStarted(ComputerStation computerStation, BasePlayer player, string bookmarkName, IRemoteControllable entity)
+        private void OnBookmarkControlStarted(ComputerStation computerStation, BasePlayer player, string bookmarkName, Drone drone)
         {
-            EndLooting(player);
-            UI.Destroy(player);
-
-            var drone = entity as Drone;
-            if (drone == null || GetDroneStorage(drone) == null)
+            var storage = GetDroneStorage(drone);
+            if (storage == null)
                 return;
 
+            UI.Destroy(player);
             UI.Create(player);
             _droneControllerTracker.Add(player.userID);
         }
@@ -594,17 +602,23 @@ namespace Oxide.Plugins
             return IsDroneStorage(storage, out drone);
         }
 
-        private static Drone GetControlledDrone(BasePlayer player)
+        private static Drone GetControlledDrone(ComputerStation computerStation) =>
+            computerStation.currentlyControllingEnt.Get(serverside: true) as Drone;
+
+        private static Drone GetControlledDrone(BasePlayer player, out ComputerStation computerStation)
         {
-            var computerStation = player.GetMounted() as ComputerStation;
+            computerStation = player.GetMounted() as ComputerStation;
             if (computerStation == null)
                 return null;
 
             return GetControlledDrone(computerStation);
         }
 
-        private static Drone GetControlledDrone(ComputerStation computerStation) =>
-            computerStation.currentlyControllingEnt.Get(serverside: true) as Drone;
+        private static Drone GetControlledDrone(BasePlayer player)
+        {
+            ComputerStation computerStation;
+            return GetControlledDrone(player, out computerStation);
+        }
 
         private static StorageContainer GetDroneStorage(Drone drone)
         {
