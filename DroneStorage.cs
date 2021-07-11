@@ -417,7 +417,17 @@ namespace Oxide.Plugins
                 return;
             }
 
+            var baseLock = GetLock(storage);
+            var isLocked = baseLock != null && baseLock.IsLocked();
+
+            // Temporarily unlock the container so that the player can view the contents without authorization.
+            if (isLocked)
+                baseLock.SetFlag(BaseEntity.Flags.Locked, false, recursive: false, networkupdate: false);
+
             storage.PlayerOpenLoot(basePlayer, storage.panelName, doPositionChecks: false);
+
+            if (isLocked)
+                baseLock.SetFlag(BasePlayer.Flags.Locked, true, recursive: false, networkupdate: false);
         }
 
         [Command("dronestorage.ui.dropitems")]
