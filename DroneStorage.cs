@@ -59,6 +59,22 @@ namespace Oxide.Plugins
         private static readonly Vector3 StorageDropForwardLocation = new Vector3(0, 0, 0.7f);
         private static readonly Quaternion StorageDropRotation = Quaternion.Euler(90, 0, 0);
 
+        // Subscribe to these hooks while there are storage drones.
+        private DynamicHookSubscriber<uint> _storageDroneTracker = new DynamicHookSubscriber<uint>(
+            nameof(OnEntityDeath),
+            nameof(OnEntityTakeDamage),
+            nameof(OnBookmarkControlStarted),
+            nameof(OnBookmarkControlEnded),
+            nameof(CanPickupEntity),
+            nameof(CanAcceptItem)
+        );
+
+        // Subscribe to these hooks while storage drones are being controlled.
+        private DynamicHookSubscriber<ulong> _droneControllerTracker = new DynamicHookSubscriber<ulong>(
+            nameof(CanMoveItem),
+            nameof(OnItemAction)
+        );
+
         #endregion
 
         #region Hooks
@@ -75,6 +91,9 @@ namespace Oxide.Plugins
 
             foreach (var capacityAmount in _pluginConfig.CapacityAmounts)
                 permission.RegisterPermission(GetCapacityPermission(capacityAmount), this);
+
+            _storageDroneTracker.UnsubscribeAll();
+            _droneControllerTracker.UnsubscribeAll();
 
             Unsubscribe(nameof(OnEntitySpawned));
 
@@ -98,7 +117,6 @@ namespace Oxide.Plugins
                 if (drone == null || !IsDroneEligible(drone))
                     continue;
 
-                RefreshDronSettingsProfile(drone);
                 AddOrUpdateStorage(drone);
             }
 
@@ -121,12 +139,22 @@ namespace Oxide.Plugins
             });
         }
 
+        private void OnEntityKill(Drone drone)
+        {
+            var storage = GetDroneStorage(drone);
+            if (storage == null)
+                return;
+
+            _storageDroneTracker.Remove(drone.net.ID);
+        }
+
         private void OnEntityKill(StorageContainer storage)
         {
             var drone = GetParentDrone(storage);
             if (drone == null)
                 return;
 
+            _storageDroneTracker.Remove(drone.net.ID);
             drone.Invoke(() => RefreshDronSettingsProfile(drone), 0);
         }
 
@@ -135,12 +163,14 @@ namespace Oxide.Plugins
             if (!IsDroneEligible(drone))
                 return;
 
-            var storage = GetChildOfType<StorageContainer>(drone);
-            if (storage != null)
-                DropItems(drone, storage);
+            var storage = GetDroneStorage(drone);
+            if (storage == null)
+                return;
+
+            DropItems(drone, storage);
         }
 
-        private object OnEntityTakeDamage(StorageContainer storage, HitInfo info)
+        private bool? OnEntityTakeDamage(StorageContainer storage, HitInfo info)
         {
             var drone = GetParentDrone(storage);
             if (drone == null)
@@ -158,17 +188,21 @@ namespace Oxide.Plugins
             UI.Destroy(player);
 
             var drone = entity as Drone;
-            if (drone != null && GetDroneStorage(drone) != null)
-                UI.Create(player);
+            if (drone == null || GetDroneStorage(drone) == null)
+                return;
+
+            UI.Create(player);
+            _droneControllerTracker.Add(player.userID);
         }
 
         private void OnBookmarkControlEnded(ComputerStation station, BasePlayer player, Drone drone)
         {
             EndLooting(player);
             UI.Destroy(player);
+            _droneControllerTracker.Remove(player.userID);
         }
 
-        private object CanPickupEntity(BasePlayer player, Drone drone)
+        private bool? CanPickupEntity(BasePlayer player, Drone drone)
         {
             if (!IsDroneEligible(drone))
                 return null;
@@ -571,15 +605,6 @@ namespace Oxide.Plugins
             entity.ClientRPCPlayer(null, player, "HitNotify");
         }
 
-        private static void SetupDroneStorage(StorageContainer container, int capacity)
-        {
-            // Damage will be processed by the drone.
-            container.baseProtection = null;
-
-            container.inventory.capacity = capacity;
-            container.panelName = GetSmallestPanelForCapacity(capacity);
-        }
-
         private static string GetSmallestPanelForCapacity(int capacity)
         {
             string panelName = MaximumCapacityPanelName;
@@ -643,6 +668,18 @@ namespace Oxide.Plugins
             player.ClientRPCPlayer(null, player, "OnRespawnInformation");
         }
 
+        private void SetupDroneStorage(Drone drone, StorageContainer container, int capacity)
+        {
+            // Damage will be processed by the drone.
+            container.baseProtection = null;
+
+            container.inventory.capacity = capacity;
+            container.panelName = GetSmallestPanelForCapacity(capacity);
+
+            RefreshDronSettingsProfile(drone);
+            _storageDroneTracker.Add(drone.net.ID);
+        }
+
         private StorageContainer TryDeployStorage(Drone drone, int capacity, BasePlayer deployer = null)
         {
             if (DeployStorageWasBlocked(drone, deployer))
@@ -655,28 +692,13 @@ namespace Oxide.Plugins
             container.SetParent(drone);
             container.Spawn();
 
-            SetupDroneStorage(container, capacity);
+            SetupDroneStorage(drone, container, capacity);
             drone.SetSlot(StorageSlot, container);
 
             Effect.server.Run(StorageDeployEffectPrefab, container.transform.position);
             Interface.CallHook("OnDroneStorageDeployed", drone, container, deployer);
-            RefreshDronSettingsProfile(drone);
 
             return container;
-        }
-
-        private void AddOrUpdateStorage(Drone drone)
-        {
-            var container = GetDroneStorage(drone);
-            if (container == null)
-            {
-                TryAutoDeployStorage(drone);
-                return;
-            }
-
-            // Possibly increase capacity, but do not decrease it because that could hide items.
-            int capacity = Math.Max(container.inventory.capacity, GetPlayerAllowedCapacity(drone.OwnerID));
-            SetupDroneStorage(container, capacity);
         }
 
         private void TryAutoDeployStorage(Drone drone)
@@ -691,6 +713,59 @@ namespace Oxide.Plugins
                 return;
 
             TryDeployStorage(drone, capacity);
+        }
+
+        private void AddOrUpdateStorage(Drone drone)
+        {
+            var container = GetDroneStorage(drone);
+            if (container == null)
+            {
+                TryAutoDeployStorage(drone);
+                return;
+            }
+
+            // Possibly increase capacity, but do not decrease it because that could hide items.
+            int capacity = Math.Max(container.inventory.capacity, GetPlayerAllowedCapacity(drone.OwnerID));
+            SetupDroneStorage(drone, container, capacity);
+        }
+
+        #endregion
+
+        #region Dynamic Hook Subscriptions
+
+        private class DynamicHookSubscriber<T>
+        {
+            private HashSet<T> _list = new HashSet<T>();
+            private string[] _hookNames;
+
+            public DynamicHookSubscriber(params string[] hookNames)
+            {
+                _hookNames = hookNames;
+            }
+
+            public void Add(T item)
+            {
+                if (_list.Add(item) && _list.Count == 1)
+                    SubscribeAll();
+            }
+
+            public void Remove(T item)
+            {
+                if (_list.Remove(item) && _list.Count == 0)
+                    UnsubscribeAll();
+            }
+
+            public void SubscribeAll()
+            {
+                foreach (var hookName in _hookNames)
+                    _pluginInstance.Subscribe(hookName);
+            }
+
+            public void UnsubscribeAll()
+            {
+                foreach (var hookName in _hookNames)
+                    _pluginInstance.Unsubscribe(hookName);
+            }
         }
 
         #endregion
