@@ -33,7 +33,7 @@ namespace Oxide.Plugins
         private const string PermissionCapacityPrefix = "dronestorage.capacity";
 
         // HAB storage is the best since it has an accurate collider, decent rendering distance and is a StorageContainer.
-        private const string ContainerPrefab = "assets/prefabs/deployable/hot air balloon/subents/hab_storage.prefab";
+        private const string StoragePrefab = "assets/prefabs/deployable/hot air balloon/subents/hab_storage.prefab";
         private const string StorageDeployEffectPrefab = "assets/prefabs/deployable/small stash/effects/small-stash-deploy.prefab";
         private const string DropBagPrefab = "assets/prefabs/misc/item drop/item_drop.prefab";
 
@@ -156,8 +156,8 @@ namespace Oxide.Plugins
 
         private void OnEntityKill(StorageContainer storage)
         {
-            var drone = GetParentDrone(storage);
-            if (drone == null)
+            Drone drone;
+            if (!IsDroneStorage(storage, out drone))
                 return;
 
             _storageDroneTracker.Remove(drone.net.ID);
@@ -166,9 +166,6 @@ namespace Oxide.Plugins
 
         private void OnEntityDeath(Drone drone)
         {
-            if (!IsDroneEligible(drone))
-                return;
-
             var storage = GetDroneStorage(drone);
             if (storage == null)
                 return;
@@ -178,8 +175,8 @@ namespace Oxide.Plugins
 
         private bool? OnEntityTakeDamage(StorageContainer storage, HitInfo info)
         {
-            var drone = GetParentDrone(storage);
-            if (drone == null)
+            Drone drone;
+            if (!IsDroneStorage(storage, out drone))
                 return null;
 
             drone.Hurt(info);
@@ -255,12 +252,11 @@ namespace Oxide.Plugins
 
         private ItemContainer.CanAcceptResult? CanAcceptItem(ItemContainer container, Item item)
         {
-            var storageContainer = container.entityOwner as StorageContainer;
-            if (storageContainer == null)
+            var storage = container.entityOwner as StorageContainer;
+            if (storage == null)
                 return null;
 
-            var drone = GetParentDrone(storageContainer);
-            if (drone == null || !IsDroneEligible(drone))
+            if (!IsDroneStorage(storage))
                 return null;
 
             if (_pluginConfig.DisallowedItems != null
@@ -275,10 +271,9 @@ namespace Oxide.Plugins
             return null;
         }
 
-        private void OnItemDeployed(Deployer deployer, StorageContainer container, BaseLock baseLock)
+        private void OnItemDeployed(Deployer deployer, StorageContainer storage, BaseLock baseLock)
         {
-            var drone = GetParentDrone(container);
-            if (drone == null)
+            if (!IsDroneStorage(storage))
                 return;
 
             baseLock.transform.localPosition = StorageLockPosition;
@@ -300,9 +295,9 @@ namespace Oxide.Plugins
             if (drone == null)
                 return null;
 
-            // For simplicity, simply block all item moves while the player is looting a drone stash.
-            var storageContainer = playerInventory.loot.entitySource as StorageContainer;
-            if (storageContainer != null && GetParentDrone(storageContainer) != null)
+            // For simplicity, block all item moves while the player is looting a drone stash.
+            var storage = playerInventory.loot.entitySource as StorageContainer;
+            if (storage != null && IsDroneStorage(storage))
                 return false;
 
             return null;
@@ -584,8 +579,20 @@ namespace Oxide.Plugins
         private static bool IsDroneEligible(Drone drone) =>
             !(drone is DeliveryDrone);
 
-        private static Drone GetParentDrone(BaseEntity entity) =>
-            entity.GetParentEntity() as Drone;
+        private static bool IsDroneStorage(StorageContainer storage, out Drone drone)
+        {
+            drone = storage.GetParentEntity() as Drone;
+            if (drone == null)
+                return false;
+
+            return storage.PrefabName == StoragePrefab;
+        }
+
+        private static bool IsDroneStorage(StorageContainer storage)
+        {
+            Drone drone;
+            return IsDroneStorage(storage, out drone);
+        }
 
         private static Drone GetControlledDrone(BasePlayer player)
         {
@@ -599,8 +606,17 @@ namespace Oxide.Plugins
         private static Drone GetControlledDrone(ComputerStation computerStation) =>
             computerStation.currentlyControllingEnt.Get(serverside: true) as Drone;
 
-        private static StorageContainer GetDroneStorage(Drone drone) =>
-            GetChildOfType<StorageContainer>(drone);
+        private static StorageContainer GetDroneStorage(Drone drone)
+        {
+            foreach (var child in drone.children)
+            {
+                var storage = child as StorageContainer;
+                if (storage != null && storage.PrefabName == StoragePrefab)
+                    return storage;
+            }
+
+            return null;
+        }
 
         private static T GetChildOfType<T>(BaseEntity entity) where T : BaseEntity
         {
@@ -685,22 +701,22 @@ namespace Oxide.Plugins
             player.ClientRPCPlayer(null, player, "OnRespawnInformation");
         }
 
-        private bool IsStorageLockable(StorageContainer container) =>
-            container.OwnerID != 0
-            && permission.UserHasPermission(container.OwnerID.ToString(), PermissionLockable);
+        private bool IsStorageLockable(StorageContainer storage) =>
+            storage.OwnerID != 0
+            && permission.UserHasPermission(storage.OwnerID.ToString(), PermissionLockable);
 
-        private void SetupDroneStorage(Drone drone, StorageContainer container, int capacity)
+        private void SetupDroneStorage(Drone drone, StorageContainer storage, int capacity)
         {
-            if (container.OwnerID == 0)
-                container.OwnerID = drone.OwnerID;
+            if (storage.OwnerID == 0)
+                storage.OwnerID = drone.OwnerID;
 
-            container.isLockable = IsStorageLockable(container);
+            storage.isLockable = IsStorageLockable(storage);
 
             // Damage will be processed by the drone.
-            container.baseProtection = null;
+            storage.baseProtection = null;
 
-            container.inventory.capacity = capacity;
-            container.panelName = GetSmallestPanelForCapacity(capacity);
+            storage.inventory.capacity = capacity;
+            storage.panelName = GetSmallestPanelForCapacity(capacity);
 
             RefreshDronSettingsProfile(drone);
             _storageDroneTracker.Add(drone.net.ID);
@@ -711,21 +727,21 @@ namespace Oxide.Plugins
             if (DeployStorageWasBlocked(drone, deployer))
                 return null;
 
-            var container = GameManager.server.CreateEntity(ContainerPrefab, StorageLocalPosition, StorageLocalRotation) as StorageContainer;
-            if (container == null)
+            var storage = GameManager.server.CreateEntity(StoragePrefab, StorageLocalPosition, StorageLocalRotation) as StorageContainer;
+            if (storage == null)
                 return null;
 
-            container.OwnerID = deployer?.userID ?? drone.OwnerID;
-            container.SetParent(drone);
-            container.Spawn();
+            storage.OwnerID = deployer?.userID ?? drone.OwnerID;
+            storage.SetParent(drone);
+            storage.Spawn();
 
-            SetupDroneStorage(drone, container, capacity);
-            drone.SetSlot(StorageSlot, container);
+            SetupDroneStorage(drone, storage, capacity);
+            drone.SetSlot(StorageSlot, storage);
 
-            Effect.server.Run(StorageDeployEffectPrefab, container.transform.position);
-            Interface.CallHook("OnDroneStorageDeployed", drone, container, deployer);
+            Effect.server.Run(StorageDeployEffectPrefab, storage.transform.position);
+            Interface.CallHook("OnDroneStorageDeployed", drone, storage, deployer);
 
-            return container;
+            return storage;
         }
 
         private void TryAutoDeployStorage(Drone drone)
@@ -744,16 +760,16 @@ namespace Oxide.Plugins
 
         private void AddOrUpdateStorage(Drone drone)
         {
-            var container = GetDroneStorage(drone);
-            if (container == null)
+            var storage = GetDroneStorage(drone);
+            if (storage == null)
             {
                 TryAutoDeployStorage(drone);
                 return;
             }
 
             // Possibly increase capacity, but do not decrease it because that could hide items.
-            int capacity = Math.Max(container.inventory.capacity, GetPlayerAllowedCapacity(drone.OwnerID));
-            SetupDroneStorage(drone, container, capacity);
+            int capacity = Math.Max(storage.inventory.capacity, GetPlayerAllowedCapacity(drone.OwnerID));
+            SetupDroneStorage(drone, storage, capacity);
         }
 
         #endregion
