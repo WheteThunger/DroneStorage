@@ -113,7 +113,7 @@ namespace Oxide.Plugins
 
         private void Unload()
         {
-            UI.DestroyAll();
+            UI.DestroyForAllPlayers();
 
             _pluginInstance = null;
             _pluginConfig = null;
@@ -205,15 +205,14 @@ namespace Oxide.Plugins
             if (storage == null)
                 return;
 
-            UI.Destroy(player);
-            UI.Create(player, storage);
+            UI.CreateForPlayer(player, storage);
             _droneControllerTracker.Add(player.userID);
         }
 
         private void OnBookmarkControlEnded(ComputerStation station, BasePlayer player, Drone drone)
         {
             EndLooting(player);
-            UI.Destroy(player);
+            UI.DestroyForPlayer(player);
             _droneControllerTracker.Remove(player.userID);
         }
 
@@ -457,8 +456,7 @@ namespace Oxide.Plugins
 
             baseLock.SetFlag(BaseEntity.Flags.Locked, true);
             Effect.server.Run(LockEffectPrefab, baseLock, 0, Vector3.zero, Vector3.zero);
-            UI.Destroy(basePlayer);
-            UI.Create(basePlayer, storage);
+            UI.CreateForPlayer(basePlayer, storage);
         }
 
         [Command("dronestorage.ui.unlockstorage")]
@@ -476,8 +474,7 @@ namespace Oxide.Plugins
 
             baseLock.SetFlag(BaseEntity.Flags.Locked, false);
             Effect.server.Run(UnlockEffectPrefab, baseLock, 0, Vector3.zero, Vector3.zero);
-            UI.Destroy(basePlayer);
-            UI.Create(basePlayer, storage);
+            UI.CreateForPlayer(basePlayer, storage);
         }
 
         #endregion
@@ -498,8 +495,24 @@ namespace Oxide.Plugins
                 return offsetXMin;
             }
 
-            public static void Create(BasePlayer player, StorageContainer storage)
+            public static void CreateForPlayer(BasePlayer player, StorageContainer storage)
             {
+                var baseLock = GetLock(storage);
+
+                var iPlayer = player.IPlayer;
+                var showViewItemsButton = iPlayer.HasPermission(PermissionViewItems);
+                var showDropItemsButton = iPlayer.HasPermission(PermissionDropItems);
+                var showToggleLockButton = baseLock != null && iPlayer.HasPermission(PermissionToggleLock);
+
+                var totalButtons = Convert.ToInt32(showViewItemsButton)
+                    + Convert.ToInt32(showDropItemsButton)
+                    + Convert.ToInt32(showToggleLockButton);
+
+                if (totalButtons == 0)
+                    return;
+
+                DestroyForPlayer(player);
+
                 var cuiElements = new CuiElementContainer
                 {
                     {
@@ -517,17 +530,6 @@ namespace Oxide.Plugins
                         Name
                     }
                 };
-
-                var baseLock = GetLock(storage);
-
-                var iPlayer = player.IPlayer;
-                var showViewItemsButton = iPlayer.HasPermission(PermissionViewItems);
-                var showDropItemsButton = iPlayer.HasPermission(PermissionDropItems);
-                var showToggleLockButton = baseLock != null && iPlayer.HasPermission(PermissionToggleLock);
-
-                var totalButtons = Convert.ToInt32(showViewItemsButton)
-                    + Convert.ToInt32(showDropItemsButton)
-                    + Convert.ToInt32(showToggleLockButton);
 
                 var currentButtonIndex = 0;
 
@@ -629,15 +631,15 @@ namespace Oxide.Plugins
                 CuiHelper.AddUi(player, cuiElements);
             }
 
-            public static void Destroy(BasePlayer player)
+            public static void DestroyForPlayer(BasePlayer player)
             {
                 CuiHelper.DestroyUi(player, Name);
             }
 
-            public static void DestroyAll()
+            public static void DestroyForAllPlayers()
             {
                 foreach (var player in BasePlayer.activePlayerList)
-                    Destroy(player);
+                    DestroyForPlayer(player);
             }
         }
 
