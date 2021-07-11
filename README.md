@@ -80,9 +80,9 @@ Default configuration:
       "ViewButtonTextColor": "0.97 0.92 0.88 1",
       "DropButtonColor": "0.77 0.24 0.16 1",
       "DropButtonTextColor": "0.97 0.92 0.88 1",
-      "LockButtonColor": "0.7 0.3 0 1",
+      "LockButtonColor": "0.8 0.4 0 1",
       "LockButtonTextColor": "0.97 0.92 0.88 1",
-      "UnlockButtonColor": "0.7 0.3 0 1",
+      "UnlockButtonColor": "0.8 0.4 0 1",
       "UnlockButtonTextColor": "0.97 0.92 0.88 1"
     }
   }

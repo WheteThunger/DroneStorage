@@ -988,13 +988,13 @@ namespace Oxide.Plugins
             public string DropButtonTextColor = "0.97 0.92 0.88 1";
 
             [JsonProperty("LockButtonColor")]
-            public string LockButtonColor = "0.7 0.3 0 1";
+            public string LockButtonColor = "0.8 0.4 0 1";
 
             [JsonProperty("LockButtonTextColor")]
             public string LockButtonTextColor = "0.97 0.92 0.88 1";
 
             [JsonProperty("UnlockButtonColor")]
-            public string UnlockButtonColor = "0.7 0.3 0 1";
+            public string UnlockButtonColor = "0.8 0.4 0 1";
 
             [JsonProperty("UnlockButtonTextColor")]
             public string UnlockButtonTextColor = "0.97 0.92 0.88 1";
