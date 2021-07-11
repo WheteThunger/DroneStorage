@@ -441,7 +441,7 @@ namespace Oxide.Plugins
             DropItems(drone, storage, basePlayer);
         }
 
-        [Command("dronestorage.ui.lockstorage")]
+        [Command("dronestorage.ui.togglelock")]
         private void UICommandLockStorage(IPlayer player)
         {
             BasePlayer basePlayer;
@@ -451,29 +451,12 @@ namespace Oxide.Plugins
                 return;
 
             var baseLock = GetLock(storage);
-            if (baseLock == null || baseLock.IsLocked())
+            if (baseLock == null)
                 return;
 
-            baseLock.SetFlag(BaseEntity.Flags.Locked, true);
-            Effect.server.Run(LockEffectPrefab, baseLock, 0, Vector3.zero, Vector3.zero);
-            UI.CreateForPlayer(basePlayer, storage);
-        }
-
-        [Command("dronestorage.ui.unlockstorage")]
-        private void UICommandUnlockStorage(IPlayer player)
-        {
-            BasePlayer basePlayer;
-            Drone drone;
-            StorageContainer storage;
-            if (!TryGetControlledStorage(player, PermissionToggleLock, out basePlayer, out drone, out storage))
-                return;
-
-            var baseLock = GetLock(storage);
-            if (baseLock == null || !baseLock.IsLocked())
-                return;
-
-            baseLock.SetFlag(BaseEntity.Flags.Locked, false);
-            Effect.server.Run(UnlockEffectPrefab, baseLock, 0, Vector3.zero, Vector3.zero);
+            var wasLocked = baseLock.IsLocked();
+            baseLock.SetFlag(BaseEntity.Flags.Locked, !wasLocked);
+            Effect.server.Run(wasLocked ? UnlockEffectPrefab : LockEffectPrefab, baseLock, 0, Vector3.zero, Vector3.zero);
             UI.CreateForPlayer(basePlayer, storage);
         }
 
@@ -599,7 +582,6 @@ namespace Oxide.Plugins
                 {
                     var isLocked = baseLock.IsLocked();
                     var offsetXMin = GetButtonOffsetX(currentButtonIndex++, totalButtons);
-                    var subCommand = isLocked ? "unlockstorage" : "lockstorage";
 
                     cuiElements.Add(
                         new CuiButton
@@ -614,7 +596,7 @@ namespace Oxide.Plugins
                             Button =
                             {
                                 Color = isLocked ? _buttonSettings.UnlockButtonColor : _buttonSettings.LockButtonColor,
-                                Command = $"dronestorage.ui.{subCommand}",
+                                Command = "dronestorage.ui.togglelock",
                             },
                             RectTransform =
                             {
