@@ -15,6 +15,7 @@
 - `dronestorage.autodeploy` -- Drones deployed by players with this permission will automatically have a stash, free of charge.
   - Note: Reloading the plugin will automatically add stashes to existing drones owned by players with this permission.
   - Not recommended if you want to allow players to deploy other attachments such as auto turrets since they are incompatible.
+- `dronestorage.lockable` -- Drone stashes deployed by players with this permission may have a code lock or key lock deployed to them.
 
 Note: In order for manual or automatic deployment to work, the player will need permission to at least 1 storage capacity (see the Capacity permissions section below).
 

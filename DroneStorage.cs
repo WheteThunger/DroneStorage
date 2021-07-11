@@ -27,6 +27,7 @@ namespace Oxide.Plugins
         private const string PermissionDeploy = "dronestorage.deploy";
         private const string PermissionDeployFree = "dronestorage.deploy.free";
         private const string PermissionAutoDeploy = "dronestorage.autodeploy";
+        private const string PermissionLockable = "dronestorage.lockable";
         private const string PermissionViewItems = "dronestorage.viewitems";
         private const string PermissionDropItems = "dronestorage.dropitems";
         private const string PermissionCapacityPrefix = "dronestorage.capacity";
@@ -53,6 +54,9 @@ namespace Oxide.Plugins
             [MaximumCapacityPanelName] = MaximumCapacity,
         };
 
+        private static readonly Vector3 StorageLockPosition = new Vector3(0, 0, 0.21f);
+        private static readonly Quaternion StorageLockRotation = Quaternion.Euler(0, 90, 0);
+
         private static readonly Vector3 StorageLocalPosition = new Vector3(0, 0.12f, 0);
         private static readonly Quaternion StorageLocalRotation = Quaternion.Euler(-90, 0, 0);
 
@@ -66,7 +70,8 @@ namespace Oxide.Plugins
             nameof(OnBookmarkControlStarted),
             nameof(OnBookmarkControlEnded),
             nameof(CanPickupEntity),
-            nameof(CanAcceptItem)
+            nameof(CanAcceptItem),
+            nameof(OnItemDeployed)
         );
 
         // Subscribe to these hooks while storage drones are being controlled.
@@ -86,6 +91,7 @@ namespace Oxide.Plugins
             permission.RegisterPermission(PermissionDeploy, this);
             permission.RegisterPermission(PermissionDeployFree, this);
             permission.RegisterPermission(PermissionAutoDeploy, this);
+            permission.RegisterPermission(PermissionLockable, this);
             permission.RegisterPermission(PermissionViewItems, this);
             permission.RegisterPermission(PermissionDropItems, this);
 
@@ -267,6 +273,17 @@ namespace Oxide.Plugins
                 return ItemContainer.CanAcceptResult.CannotAccept;
 
             return null;
+        }
+
+        private void OnItemDeployed(Deployer deployer, StorageContainer container, BaseLock baseLock)
+        {
+            var drone = GetParentDrone(container);
+            if (drone == null)
+                return;
+
+            baseLock.transform.localPosition = StorageLockPosition;
+            baseLock.transform.localRotation = StorageLockRotation;
+            baseLock.SendNetworkUpdateImmediate();
         }
 
         // Prevent the drone controller from moving items while remotely viewing a drone stash.
@@ -668,8 +685,17 @@ namespace Oxide.Plugins
             player.ClientRPCPlayer(null, player, "OnRespawnInformation");
         }
 
+        private bool IsStorageLockable(StorageContainer container) =>
+            container.OwnerID != 0
+            && permission.UserHasPermission(container.OwnerID.ToString(), PermissionLockable);
+
         private void SetupDroneStorage(Drone drone, StorageContainer container, int capacity)
         {
+            if (container.OwnerID == 0)
+                container.OwnerID = drone.OwnerID;
+
+            container.isLockable = IsStorageLockable(container);
+
             // Damage will be processed by the drone.
             container.baseProtection = null;
 
@@ -689,6 +715,7 @@ namespace Oxide.Plugins
             if (container == null)
                 return null;
 
+            container.OwnerID = deployer?.userID ?? drone.OwnerID;
             container.SetParent(drone);
             container.Spawn();
 
