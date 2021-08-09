@@ -161,8 +161,7 @@ namespace Oxide.Plugins
 
         private void OnEntityKill(Drone drone)
         {
-            var storage = GetDroneStorage(drone);
-            if (storage == null)
+            if (GetDroneStorage(drone) == null)
                 return;
 
             _storageDroneTracker.Remove(drone.net.ID);
@@ -175,7 +174,7 @@ namespace Oxide.Plugins
                 return;
 
             _storageDroneTracker.Remove(drone.net.ID);
-            drone.Invoke(() => RefreshDronSettingsProfile(drone), 0);
+            drone.Invoke(() => RefreshDroneSettingsProfile(drone), 0);
         }
 
         private void OnEntityDeath(Drone drone)
@@ -641,7 +640,7 @@ namespace Oxide.Plugins
             return hookResult is bool && (bool)hookResult == false;
         }
 
-        private void RefreshDronSettingsProfile(Drone drone)
+        private void RefreshDroneSettingsProfile(Drone drone)
         {
             DroneSettings?.Call("API_RefreshDroneProfile", drone);
         }
@@ -807,7 +806,7 @@ namespace Oxide.Plugins
             storage.inventory.capacity = capacity;
             storage.panelName = GetSmallestPanelForCapacity(capacity);
 
-            RefreshDronSettingsProfile(drone);
+            RefreshDroneSettingsProfile(drone);
             _storageDroneTracker.Add(drone.net.ID);
         }
 
