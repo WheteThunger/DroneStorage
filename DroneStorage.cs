@@ -12,7 +12,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Drone Storage", "WhiteThunder", "1.1.0")]
+    [Info("Drone Storage", "WhiteThunder", "1.1.1")]
     [Description("Allows players to deploy a small stash to RC drones.")]
     internal class DroneStorage : CovalencePlugin
     {
@@ -44,18 +44,8 @@ namespace Oxide.Plugins
 
         private const BaseEntity.Slot StorageSlot = BaseEntity.Slot.UpperModifier;
 
-        private const string MaximumCapacityPanelName = "genericlarge";
+        private const string ResizableLootPanelName = "generic_resizable";
         private const int MaximumCapacity = 42;
-
-        private static readonly Dictionary<string, int> DisplayCapacityByPanelName = new Dictionary<string, int>
-        {
-            ["fuelsmall"] = 1,
-            ["smallstash"] = 6,
-            ["smallwoodbox"] = 12,
-            ["largewoodbox"] = 30,
-            ["generic"] = 36,
-            [MaximumCapacityPanelName] = MaximumCapacity,
-        };
 
         private static readonly Vector3 StorageLockPosition = new Vector3(0, 0, 0.21f);
         private static readonly Quaternion StorageLockRotation = Quaternion.Euler(0, 90, 0);
@@ -708,23 +698,6 @@ namespace Oxide.Plugins
             entity.ClientRPCPlayer(null, player, "HitNotify");
         }
 
-        private static string GetSmallestPanelForCapacity(int capacity)
-        {
-            string panelName = MaximumCapacityPanelName;
-            int displayCapacity = MaximumCapacity;
-
-            foreach (var entry in DisplayCapacityByPanelName)
-            {
-                if (entry.Value >= capacity && entry.Value < displayCapacity)
-                {
-                    panelName = entry.Key;
-                    displayCapacity = entry.Value;
-                }
-            }
-
-            return panelName;
-        }
-
         private static void RemoveProblemComponents(BaseEntity ent)
         {
             foreach (var meshCollider in ent.GetComponentsInChildren<MeshCollider>())
@@ -804,7 +777,7 @@ namespace Oxide.Plugins
             storage.baseProtection = null;
 
             storage.inventory.capacity = capacity;
-            storage.panelName = GetSmallestPanelForCapacity(capacity);
+            storage.panelName = ResizableLootPanelName;
 
             RefreshDroneSettingsProfile(drone);
             _storageDroneTracker.Add(drone.net.ID);
