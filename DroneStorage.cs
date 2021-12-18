@@ -56,6 +56,8 @@ namespace Oxide.Plugins
         private static readonly Vector3 StorageDropForwardLocation = new Vector3(0, 0, 0.7f);
         private static readonly Quaternion StorageDropRotation = Quaternion.Euler(90, 0, 0);
 
+        private Func<Item, int, bool> StashItemFilter = CanStashAcceptItem;
+
         // Subscribe to these hooks while there are storage drones.
         private DynamicHookSubscriber<uint> _storageDroneTracker = new DynamicHookSubscriber<uint>(
             nameof(OnEntityDeath),
@@ -63,7 +65,6 @@ namespace Oxide.Plugins
             nameof(OnBookmarkControlStarted),
             nameof(OnBookmarkControlEnded),
             nameof(CanPickupEntity),
-            nameof(CanAcceptItem),
             nameof(OnItemDeployed)
         );
 
@@ -248,27 +249,6 @@ namespace Oxide.Plugins
                     ChatMessage(player, Lang.TipDeployCommand);
                 }
             });
-        }
-
-        private ItemContainer.CanAcceptResult? CanAcceptItem(ItemContainer container, Item item)
-        {
-            var storage = container.entityOwner as StorageContainer;
-            if (storage == null)
-                return null;
-
-            if (!IsDroneStorage(storage))
-                return null;
-
-            if (_pluginConfig.DisallowedItems != null
-                && _pluginConfig.DisallowedItems.Contains(item.info.shortname))
-                return ItemContainer.CanAcceptResult.CannotAccept;
-
-            if (item.skin != 0
-                && _pluginConfig.DisallowedSkins != null
-                && _pluginConfig.DisallowedSkins.Contains(item.skin))
-                return ItemContainer.CanAcceptResult.CannotAccept;
-
-            return null;
         }
 
         private void OnItemDeployed(Deployer deployer, StorageContainer storage, BaseLock baseLock)
@@ -744,6 +724,29 @@ namespace Oxide.Plugins
             player.ClientRPCPlayer(null, player, "OnRespawnInformation");
         }
 
+        private static bool ShouldStashAcceptItem(Item item)
+        {
+            if (_pluginConfig.DisallowedItems != null
+                && _pluginConfig.DisallowedItems.Contains(item.info.shortname))
+                return false;
+
+            if (item.skin != 0
+                && _pluginConfig.DisallowedSkins != null
+                && _pluginConfig.DisallowedSkins.Contains(item.skin))
+                return false;
+
+            return true;
+        }
+
+        private static bool CanStashAcceptItem(Item item, int amount)
+        {
+            // Explicitly track hook time so server owners can be informed of the cost.
+            _pluginInstance?.TrackStart();
+            var result = ShouldStashAcceptItem(item);
+            _pluginInstance?.TrackEnd();
+            return result;
+        }
+
         private bool TryGetControlledStorage(IPlayer player, string perm, out BasePlayer basePlayer, out Drone drone, out StorageContainer storage)
         {
             basePlayer = null;
@@ -771,6 +774,7 @@ namespace Oxide.Plugins
             if (storage.OwnerID == 0)
                 storage.OwnerID = drone.OwnerID;
 
+            storage.inventory.canAcceptItem = StashItemFilter;
             storage.isLockable = IsStorageLockable(storage);
 
             // Damage will be processed by the drone.
