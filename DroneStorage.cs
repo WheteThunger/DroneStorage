@@ -59,7 +59,7 @@ namespace Oxide.Plugins
         private Func<Item, int, bool> StashItemFilter = CanStashAcceptItem;
 
         // Subscribe to these hooks while there are storage drones.
-        private DynamicHookSubscriber<uint> _storageDroneTracker = new DynamicHookSubscriber<uint>(
+        private DynamicHookSubscriber<uint> _droneStorageTracker = new DynamicHookSubscriber<uint>(
             nameof(OnEntityDeath),
             nameof(OnEntityTakeDamage),
             nameof(OnBookmarkControlStarted),
@@ -93,7 +93,7 @@ namespace Oxide.Plugins
             foreach (var capacityAmount in _pluginConfig.CapacityAmounts)
                 permission.RegisterPermission(GetCapacityPermission(capacityAmount), this);
 
-            _storageDroneTracker.UnsubscribeAll();
+            _droneStorageTracker.UnsubscribeAll();
             _droneControllerTracker.UnsubscribeAll();
 
             Unsubscribe(nameof(OnEntitySpawned));
@@ -105,6 +105,19 @@ namespace Oxide.Plugins
         private void Unload()
         {
             UI.DestroyForAllPlayers();
+
+            foreach (var entity in BaseNetworkable.serverEntities)
+            {
+                var drone = entity as Drone;
+                if (drone == null || !IsDroneEligible(drone))
+                    continue;
+
+                var stash = GetDroneStorage(drone);
+                if (stash == null)
+                    continue;
+
+                DroneStorageComponent.RemoveFromStorage(stash);
+            }
 
             _pluginInstance = null;
             _pluginConfig = null;
@@ -148,24 +161,6 @@ namespace Oxide.Plugins
 
                 TryAutoDeployStorage(drone);
             });
-        }
-
-        private void OnEntityKill(Drone drone)
-        {
-            if (GetDroneStorage(drone) == null)
-                return;
-
-            _storageDroneTracker.Remove(drone.net.ID);
-        }
-
-        private void OnEntityKill(StorageContainer storage)
-        {
-            Drone drone;
-            if (!IsDroneStorage(storage, out drone))
-                return;
-
-            _storageDroneTracker.Remove(drone.net.ID);
-            drone.Invoke(() => RefreshDroneSettingsProfile(drone), 0);
         }
 
         private void OnEntityDeath(Drone drone)
@@ -783,8 +778,8 @@ namespace Oxide.Plugins
             storage.inventory.capacity = capacity;
             storage.panelName = ResizableLootPanelName;
 
+            DroneStorageComponent.AddToStorage(storage);
             RefreshDroneSettingsProfile(drone);
-            _storageDroneTracker.Add(drone.net.ID);
         }
 
         private StorageContainer TryDeployStorage(Drone drone, int capacity, BasePlayer deployer = null)
@@ -835,6 +830,42 @@ namespace Oxide.Plugins
             // Possibly increase capacity, but do not decrease it because that could hide items.
             int capacity = Math.Max(storage.inventory.capacity, GetPlayerAllowedCapacity(drone.OwnerID));
             SetupDroneStorage(drone, storage, capacity);
+        }
+
+        #endregion
+
+        #region Drone Storage Component
+
+        private class DroneStorageComponent : MonoBehaviour
+        {
+            public static void AddToStorage(StorageContainer storageContainer) =>
+                storageContainer.gameObject.AddComponent<DroneStorageComponent>();
+
+            public static void RemoveFromStorage(StorageContainer storageContainer) =>
+                DestroyImmediate(storageContainer.GetComponent<DroneStorageComponent>());
+
+            private Drone _drone;
+            private uint _netId;
+
+            private void Awake()
+            {
+                var storageContainer = GetComponent<StorageContainer>();
+                if (storageContainer == null)
+                    return;
+
+                _drone = storageContainer.GetParentEntity() as Drone;
+                _netId = storageContainer.net.ID;
+
+                _pluginInstance._droneStorageTracker.Add(storageContainer.net.ID);
+            }
+
+            private void OnDestroy()
+            {
+                if (_drone != null && !_drone.IsDestroyed)
+                    _drone.Invoke(() => _pluginInstance?.RefreshDroneSettingsProfile(_drone), 0);
+
+                _pluginInstance?._droneStorageTracker.Remove(_netId);
+            }
         }
 
         #endregion
