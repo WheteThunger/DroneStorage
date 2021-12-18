@@ -68,8 +68,8 @@ namespace Oxide.Plugins
             nameof(OnItemDeployed)
         );
 
-        // Subscribe to these hooks while storage drones are being controlled.
-        private DynamicHookSubscriber<ulong> _droneControllerTracker = new DynamicHookSubscriber<ulong>(
+        // Subscribe to these hooks while drone storage is being remotely viewed.
+        private DynamicHookSubscriber<ulong> _remoteViewerTracker = new DynamicHookSubscriber<ulong>(
             nameof(CanMoveItem),
             nameof(OnItemAction)
         );
@@ -94,7 +94,7 @@ namespace Oxide.Plugins
                 permission.RegisterPermission(GetCapacityPermission(capacityAmount), this);
 
             _droneStorageTracker.UnsubscribeAll();
-            _droneControllerTracker.UnsubscribeAll();
+            _remoteViewerTracker.UnsubscribeAll();
 
             Unsubscribe(nameof(OnEntitySpawned));
 
@@ -138,8 +138,15 @@ namespace Oxide.Plugins
             {
                 ComputerStation computerStation;
                 var drone = GetControlledDrone(player, out computerStation);
-                if (drone == null || GetDroneStorage(drone) == null)
+                if (drone == null)
                     continue;
+
+                var storage = GetDroneStorage(drone);
+                if (storage == null)
+                    continue;
+
+                if (storage.inventory != null && storage.inventory == player.inventory?.loot?.containers?.FirstOrDefault())
+                    _remoteViewerTracker.Add(player.userID);
 
                 OnBookmarkControlStarted(computerStation, player, string.Empty, drone);
             }
@@ -191,14 +198,12 @@ namespace Oxide.Plugins
                 return;
 
             UI.CreateForPlayer(player, storage);
-            _droneControllerTracker.Add(player.userID);
         }
 
         private void OnBookmarkControlEnded(ComputerStation station, BasePlayer player, Drone drone)
         {
             EndLooting(player);
             UI.DestroyForPlayer(player);
-            _droneControllerTracker.Remove(player.userID);
         }
 
         private bool? CanPickupEntity(BasePlayer player, Drone drone)
@@ -388,6 +393,7 @@ namespace Oxide.Plugins
                 baseLock.SetFlag(BaseEntity.Flags.Locked, false, recursive: false, networkupdate: false);
 
             storage.PlayerOpenLoot(basePlayer, storage.panelName, doPositionChecks: false);
+            _remoteViewerTracker.Add(basePlayer.userID);
 
             if (isLocked)
                 baseLock.SetFlag(BasePlayer.Flags.Locked, true, recursive: false, networkupdate: false);
@@ -857,6 +863,14 @@ namespace Oxide.Plugins
                 _netId = storageContainer.net.ID;
 
                 _pluginInstance._droneStorageTracker.Add(storageContainer.net.ID);
+            }
+
+            // Called via `entity.SendMessage("PlayerStoppedLooting", player)` in PlayerLoot.Clear().
+            private void PlayerStoppedLooting(BasePlayer looter)
+            {
+                _pluginInstance?.TrackStart();
+                _pluginInstance?._remoteViewerTracker.Remove(looter.userID);
+                _pluginInstance?.TrackEnd();
             }
 
             private void OnDestroy()
