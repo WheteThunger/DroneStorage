@@ -6,6 +6,7 @@
 - Allows drone controllers to remotely view the stash contents, drop them at the drone position, and lock or unlock the stash
 - Redirects damage from the stash to the drone
 - Drops the stash contents when the drone is destroyed
+- Allows removing the stash with the Remover Tool plugin
 
 ## Permissions
 
@@ -105,6 +106,7 @@ Default configuration:
   "UI.Button.LockStorage": "Lock",
   "UI.Button.UnlockStorage": "Unlock",
   "Tip.DeployCommand": "Tip: Look at the drone and run <color=yellow>/dronestash</color> to deploy a stash.",
+  "Info.StashName": "Drone Stash",
   "Error.NoPermission": "You don't have permission to do that.",
   "Error.BuildingBlocked": "Error: Cannot do that while building blocked.",
   "Error.NoDroneFound": "Error: No drone found.",

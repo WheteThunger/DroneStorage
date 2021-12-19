@@ -58,6 +58,15 @@ namespace Oxide.Plugins
 
         private Func<Item, int, bool> StashItemFilter = CanStashAcceptItem;
 
+        private Dictionary<string, object> _removeInfo = new Dictionary<string, object>();
+        private Dictionary<string, object> _refundInfo = new Dictionary<string, object>
+        {
+            ["stash.small"] = new Dictionary<string, object>
+            {
+                ["Amount"] = 1,
+            },
+        };
+
         // Subscribe to these hooks while there are storage drones.
         private DynamicHookSubscriber<uint> _droneStorageTracker = new DynamicHookSubscriber<uint>(
             nameof(OnEntityDeath),
@@ -297,6 +306,22 @@ namespace Oxide.Plugins
             return null;
         }
 
+        // This hook is exposed by plugin: Remover Tool (RemoverTool).
+        private Dictionary<string, object> OnRemovableEntityInfo(StorageContainer storage, BasePlayer player)
+        {
+            if (!IsDroneStorage(storage))
+                return null;
+
+            _removeInfo["DisplayName"] = GetMessage(player, Lang.InfoStashName);
+
+            if (storage.pickup.enabled)
+                _removeInfo["Refund"] = _refundInfo;
+            else
+                _removeInfo.Remove("Refund");
+
+            return _removeInfo;
+        }
+
         // This hook is exposed by plugin: Drone Settings (DroneSettings).
         private string OnDroneTypeDetermine(Drone drone)
         {
@@ -359,7 +384,7 @@ namespace Oxide.Plugins
                 return;
             }
 
-            if (TryDeployStorage(drone, allowedCapacity, basePlayer) == null)
+            if (TryDeployStorage(drone, allowedCapacity, allowRefund: !isFree, deployer: basePlayer) == null)
             {
                 ReplyToPlayer(player, Lang.ErrorDeployFailed);
             }
@@ -788,7 +813,7 @@ namespace Oxide.Plugins
             RefreshDroneSettingsProfile(drone);
         }
 
-        private StorageContainer TryDeployStorage(Drone drone, int capacity, BasePlayer deployer = null)
+        private StorageContainer TryDeployStorage(Drone drone, int capacity, bool allowRefund = false, BasePlayer deployer = null)
         {
             if (DeployStorageWasBlocked(drone, deployer))
                 return null;
@@ -803,6 +828,10 @@ namespace Oxide.Plugins
 
             SetupDroneStorage(drone, storage, capacity);
             drone.SetSlot(StorageSlot, storage);
+
+            // This flag is used to remember whether the stash should be refundable.
+            // This information is lost on restart but that's a minor concern.
+            storage.pickup.enabled = allowRefund;
 
             Effect.server.Run(StorageDeployEffectPrefab, storage.transform.position);
             Interface.CallHook("OnDroneStorageDeployed", drone, storage, deployer);
@@ -1133,20 +1162,23 @@ namespace Oxide.Plugins
 
         #region Localization
 
-        private void ReplyToPlayer(IPlayer player, string messageName, params object[] args) =>
-            player.Reply(string.Format(GetMessage(player, messageName), args));
-
-        private void ChatMessage(BasePlayer player, string messageName, params object[] args) =>
-            player.ChatMessage(string.Format(GetMessage(player.IPlayer, messageName), args));
-
-        private string GetMessage(IPlayer player, string messageName, params object[] args) =>
-            GetMessage(player.Id, messageName, args);
-
         private string GetMessage(string playerId, string messageName, params object[] args)
         {
             var message = lang.GetMessage(messageName, this, playerId);
             return args.Length > 0 ? string.Format(message, args) : message;
         }
+
+        private string GetMessage(IPlayer player, string messageName, params object[] args) =>
+            GetMessage(player.Id, messageName, args);
+
+        private string GetMessage(BasePlayer player, string messageName, params object[] args) =>
+            GetMessage(player.UserIDString, messageName, args);
+
+        private void ReplyToPlayer(IPlayer player, string messageName, params object[] args) =>
+            player.Reply(string.Format(GetMessage(player, messageName), args));
+
+        private void ChatMessage(BasePlayer player, string messageName, params object[] args) =>
+            player.ChatMessage(string.Format(GetMessage(player.UserIDString, messageName), args));
 
         private class Lang
         {
@@ -1155,6 +1187,7 @@ namespace Oxide.Plugins
             public const string UIButtonLockStorage = "UI.Button.LockStorage";
             public const string UIButtonUnlockStorage = "UI.Button.UnlockStorage";
             public const string TipDeployCommand = "Tip.DeployCommand";
+            public const string InfoStashName = "Info.StashName";
             public const string ErrorNoPermission = "Error.NoPermission";
             public const string ErrorBuildingBlocked = "Error.BuildingBlocked";
             public const string ErrorNoDroneFound = "Error.NoDroneFound";
@@ -1173,6 +1206,7 @@ namespace Oxide.Plugins
                 [Lang.UIButtonLockStorage] = "Lock",
                 [Lang.UIButtonUnlockStorage] = "Unlock",
                 [Lang.TipDeployCommand] = "Tip: Look at the drone and run <color=yellow>/dronestash</color> to deploy a stash.",
+                [Lang.InfoStashName] = "Drone Stash",
                 [Lang.ErrorNoPermission] = "You don't have permission to do that.",
                 [Lang.ErrorBuildingBlocked] = "Error: Cannot do that while building blocked.",
                 [Lang.ErrorNoDroneFound] = "Error: No drone found.",
