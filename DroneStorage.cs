@@ -217,18 +217,11 @@ namespace Oxide.Plugins
 
         private bool? CanPickupEntity(BasePlayer player, Drone drone)
         {
-            if (!IsDroneEligible(drone))
+            if (CanPickupInternal(player, drone))
                 return null;
 
-            var storage = GetDroneStorage(drone);
-            if (storage == null)
-                return null;
-
-            // Prevent drone pickup while the storage is not empty.
-            if (!storage.inventory.IsEmpty())
-                return false;
-
-            return null;
+            ChatMessage(player, Lang.ErrorCannotPickupDroneWithItems);
+            return false;
         }
 
         private void OnEntityBuilt(Planner planner, GameObject go)
@@ -320,6 +313,15 @@ namespace Oxide.Plugins
                 _removeInfo.Remove("Refund");
 
             return _removeInfo;
+        }
+
+        // This hook is exposed by plugin: Remover Tool (RemoverTool).
+        private string canRemove(BasePlayer player, Drone drone)
+        {
+            if (CanPickupInternal(player, drone))
+                return null;
+
+            return GetMessage(player, Lang.ErrorCannotPickupDroneWithItems);
         }
 
         // This hook is exposed by plugin: Drone Settings (DroneSettings).
@@ -660,6 +662,22 @@ namespace Oxide.Plugins
         {
             Drone drone;
             return IsDroneStorage(storage, out drone);
+        }
+
+        private static bool CanPickupInternal(BasePlayer player, Drone drone)
+        {
+            if (!IsDroneEligible(drone))
+                return true;
+
+            var storage = GetDroneStorage(drone);
+            if (storage == null)
+                return true;
+
+            // Prevent drone pickup while it has a non-empty storage (the storage must be emptied first).
+            if (storage != null && !storage.inventory.IsEmpty())
+                return false;
+
+            return true;
         }
 
         private static Drone GetControlledDrone(ComputerStation computerStation) =>
@@ -1195,6 +1213,7 @@ namespace Oxide.Plugins
             public const string ErrorAlreadyHasStorage = "Error.AlreadyHasStorage";
             public const string ErrorIncompatibleAttachment = "Error.IncompatibleAttachment";
             public const string ErrorDeployFailed = "Error.DeployFailed";
+            public const string ErrorCannotPickupDroneWithItems = "Error.CannotPickupDroneWithItems";
         }
 
         protected override void LoadDefaultMessages()
@@ -1214,6 +1233,7 @@ namespace Oxide.Plugins
                 [Lang.ErrorAlreadyHasStorage] = "Error: That drone already has a stash.",
                 [Lang.ErrorIncompatibleAttachment] = "Error: That drone has an incompatible attachment.",
                 [Lang.ErrorDeployFailed] = "Error: Failed to deploy stash.",
+                [Lang.ErrorCannotPickupDroneWithItems] = "Cannot pick up that drone while its stash contains items.",
             }, this, "en");
         }
 

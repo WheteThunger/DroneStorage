@@ -113,7 +113,8 @@ Default configuration:
   "Error.NoStashItem": "Error: You need a stash to do that.",
   "Error.AlreadyHasStorage": "Error: That drone already has a stash.",
   "Error.IncompatibleAttachment": "Error: That drone has an incompatible attachment.",
-  "Error.DeployFailed": "Error: Failed to deploy stash."
+  "Error.DeployFailed": "Error: Failed to deploy stash.",
+  "Error.CannotPickupDroneWithItems": "Cannot pick up that drone while its stash contains items."
 }
 ```
 
