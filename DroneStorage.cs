@@ -105,8 +105,6 @@ namespace Oxide.Plugins
             _droneStorageTracker.UnsubscribeAll();
             _remoteViewerTracker.UnsubscribeAll();
 
-            Unsubscribe(nameof(OnEntitySpawned));
-
             if (_pluginConfig.TipChance <= 0)
                 Unsubscribe(nameof(OnEntityBuilt));
         }
@@ -140,7 +138,7 @@ namespace Oxide.Plugins
                 if (drone == null || !IsDroneEligible(drone))
                     continue;
 
-                AddOrUpdateStorage(drone);
+                RefreshStorage(drone);
             }
 
             foreach (var player in BasePlayer.activePlayerList)
@@ -160,22 +158,41 @@ namespace Oxide.Plugins
                 OnBookmarkControlStarted(computerStation, player, string.Empty, drone);
             }
 
-            Subscribe(nameof(OnEntitySpawned));
+            Subscribe(nameof(OnEntityBuilt));
         }
 
-        private void OnEntitySpawned(Drone drone)
+        private void OnEntityBuilt(Planner planner, GameObject go)
         {
-            if (!IsDroneEligible(drone))
+            if (planner == null || go == null)
                 return;
 
-            // Delay to give other plugins an opportunity to deploy an attachment,
-            // or to save the drone id to block attachments.
+            var drone = go.ToBaseEntity() as Drone;
+            if (drone == null)
+                return;
+
+            var player = planner.GetOwnerPlayer();
+            if (player == null)
+                return;
+
             NextTick(() =>
             {
-                if (drone == null)
+                // Delay this check to allow time for other plugins to deploy an entity to this slot.
+                if (drone == null || player == null || drone.GetSlot(StorageSlot) != null)
                     return;
 
-                TryAutoDeployStorage(drone);
+                var capacity = GetPlayerAllowedCapacity(drone.OwnerID);
+                if (capacity <= 0)
+                    return;
+
+                if (permission.UserHasPermission(player.UserIDString, PermissionAutoDeploy))
+                {
+                    TryDeployStorage(drone, capacity);
+                }
+                else if (permission.UserHasPermission(player.UserIDString, PermissionDeploy)
+                    && UnityEngine.Random.Range(0, 100) < _pluginConfig.TipChance)
+                {
+                    ChatMessage(player, Lang.TipDeployCommand);
+                }
             });
         }
 
@@ -222,35 +239,6 @@ namespace Oxide.Plugins
 
             ChatMessage(player, Lang.ErrorCannotPickupDroneWithItems);
             return false;
-        }
-
-        private void OnEntityBuilt(Planner planner, GameObject go)
-        {
-            if (planner == null || go == null)
-                return;
-
-            var drone = go.ToBaseEntity() as Drone;
-            if (drone == null)
-                return;
-
-            var player = planner.GetOwnerPlayer();
-            if (player == null)
-                return;
-
-            NextTick(() =>
-            {
-                // Delay this check to allow time for other plugins to deploy an entity to this slot.
-                if (drone == null || player == null || drone.GetSlot(StorageSlot) != null)
-                    return;
-
-                if (permission.UserHasPermission(player.UserIDString, PermissionDeploy)
-                    && !permission.UserHasPermission(player.UserIDString, PermissionAutoDeploy)
-                    && GetPlayerAllowedCapacity(player.userID) > 0
-                    && UnityEngine.Random.Range(0, 100) < _pluginConfig.TipChance)
-                {
-                    ChatMessage(player, Lang.TipDeployCommand);
-                }
-            });
         }
 
         private void OnItemDeployed(Deployer deployer, StorageContainer storage, BaseLock baseLock)
@@ -857,28 +845,11 @@ namespace Oxide.Plugins
             return storage;
         }
 
-        private void TryAutoDeployStorage(Drone drone)
-        {
-            if (drone.OwnerID == 0
-                || drone.GetSlot(StorageSlot) != null
-                || !permission.UserHasPermission(drone.OwnerID.ToString(), PermissionAutoDeploy))
-                return;
-
-            var capacity = GetPlayerAllowedCapacity(drone.OwnerID);
-            if (capacity <= 0)
-                return;
-
-            TryDeployStorage(drone, capacity);
-        }
-
-        private void AddOrUpdateStorage(Drone drone)
+        private void RefreshStorage(Drone drone)
         {
             var storage = GetDroneStorage(drone);
             if (storage == null)
-            {
-                TryAutoDeployStorage(drone);
                 return;
-            }
 
             // Possibly increase capacity, but do not decrease it because that could hide items.
             int capacity = Math.Max(storage.inventory.capacity, GetPlayerAllowedCapacity(drone.OwnerID));
