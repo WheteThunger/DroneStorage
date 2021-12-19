@@ -12,7 +12,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Drone Storage", "WhiteThunder", "1.1.1")]
+    [Info("Drone Storage", "WhiteThunder", "1.2.0")]
     [Description("Allows players to deploy a small stash to RC drones.")]
     internal class DroneStorage : CovalencePlugin
     {
