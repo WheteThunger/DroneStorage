@@ -12,7 +12,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Drone Storage", "WhiteThunder", "1.2.0")]
+    [Info("Drone Storage", "WhiteThunder", "1.2.1")]
     [Description("Allows players to deploy a small stash to RC drones.")]
     internal class DroneStorage : CovalencePlugin
     {
@@ -736,7 +736,7 @@ namespace Oxide.Plugins
                 EndLooting(pilot);
 
             Effect.server.Run(StorageDeployEffectPrefab, storage.transform.position);
-            var dropContainer = storage.inventory.Drop(DropBagPrefab, dropPosition, storage.transform.rotation * StorageDropRotation);
+            var dropContainer = storage.inventory.Drop(DropBagPrefab, dropPosition, storage.transform.rotation * StorageDropRotation, 0);
             Interface.Call("OnDroneStorageDropped", drone, storage, dropContainer, pilot);
         }
 
