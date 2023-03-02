@@ -8,6 +8,10 @@
 - Drops the stash contents when the drone is destroyed
 - Allows removing the stash with the Remover Tool plugin
 
+## Known issues
+
+Since the March 2023 Rust update, drones now sway in the wind, but attached entities do not sway. This causes undesirable visuals to players observing a drone that is being controlled. There is no known fix at this time.
+
 ## Permissions
 
 ### Deployment permissions
