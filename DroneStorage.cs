@@ -149,7 +149,7 @@ namespace Oxide.Plugins
             foreach (var player in BasePlayer.activePlayerList)
             {
                 ComputerStation computerStation;
-                var drone = GetControlledDrone(player, out computerStation);
+                var drone = RCUtils.GetControlledEntity<Drone>(player, out computerStation);
                 if (drone == null)
                     continue;
 
@@ -227,6 +227,9 @@ namespace Oxide.Plugins
 
         private void OnBookmarkControlStarted(ComputerStation computerStation, BasePlayer player, string bookmarkName, Drone drone)
         {
+            if (!RCUtils.HasController(drone, player))
+                return;
+
             if (_uiViewers.Contains(player))
                 return;
 
@@ -281,7 +284,7 @@ namespace Oxide.Plugins
             if (player == null)
                 return null;
 
-            var drone = GetControlledDrone(player);
+            var drone = RCUtils.GetControlledEntity<Drone>(player);
             if (drone == null)
                 return null;
 
@@ -296,7 +299,7 @@ namespace Oxide.Plugins
         // Prevent the drone controller from dropping items (or any item action) while remotely viewing a drone stash.
         private object OnItemAction(Item item, string text, BasePlayer player)
         {
-            var drone = GetControlledDrone(player);
+            var drone = RCUtils.GetControlledEntity<Drone>(player);
             if (drone == null)
                 return null;
 
@@ -415,7 +418,8 @@ namespace Oxide.Plugins
             BasePlayer basePlayer;
             Drone drone;
             StorageContainer storage;
-            if (!TryGetControlledStorage(player, PermissionViewItems, out basePlayer, out drone, out storage))
+            if (!TryGetControlledStorage(player, PermissionViewItems, out basePlayer, out drone, out storage)
+                || !RCUtils.HasController(drone, basePlayer))
                 return;
 
             if (basePlayer.inventory.loot.IsLooting() && basePlayer.inventory.loot.entitySource == storage)
@@ -455,7 +459,8 @@ namespace Oxide.Plugins
             BasePlayer basePlayer;
             Drone drone;
             StorageContainer storage;
-            if (!TryGetControlledStorage(player, PermissionDropItems, out basePlayer, out drone, out storage))
+            if (!TryGetControlledStorage(player, PermissionDropItems, out basePlayer, out drone, out storage)
+                || !RCUtils.HasController(drone, basePlayer))
                 return;
 
             DropItems(drone, storage, basePlayer);
@@ -467,7 +472,8 @@ namespace Oxide.Plugins
             BasePlayer basePlayer;
             Drone drone;
             StorageContainer storage;
-            if (!TryGetControlledStorage(player, PermissionToggleLock, out basePlayer, out drone, out storage))
+            if (!TryGetControlledStorage(player, PermissionToggleLock, out basePlayer, out drone, out storage)
+                || !RCUtils.HasController(drone, basePlayer))
                 return;
 
             if (!_uiViewers.Contains(basePlayer))
@@ -642,7 +648,35 @@ namespace Oxide.Plugins
 
         #endregion
 
-        #region Helper Methods
+        #region Helpers
+
+        private static class RCUtils
+        {
+            public static bool IsRCDrone(Drone drone)
+            {
+                return !(drone is DeliveryDrone);
+            }
+
+            public static bool HasController(IRemoteControllable controllable, BasePlayer player)
+            {
+                return controllable.ControllingViewerId?.SteamId == player.userID;
+            }
+
+            public static T GetControlledEntity<T>(BasePlayer player, out ComputerStation station) where T : class
+            {
+                station = player.GetMounted() as ComputerStation;
+                if ((object)station == null)
+                    return null;
+
+                return station.currentlyControllingEnt.Get(serverside: true) as T;
+            }
+
+            public static T GetControlledEntity<T>(BasePlayer player) where T : class
+            {
+                ComputerStation station;
+                return GetControlledEntity<T>(player, out station);
+            }
+        }
 
         private static bool DeployStorageWasBlocked(Drone drone, BasePlayer deployer)
         {
@@ -663,7 +697,7 @@ namespace Oxide.Plugins
 
         private static bool IsDroneEligible(Drone drone)
         {
-            return drone.skinID == 0 && !(drone is DeliveryDrone);
+            return drone.skinID == 0 && RCUtils.IsRCDrone(drone);
         }
 
         private static bool IsDroneStorage(StorageContainer storage, out Drone drone)
@@ -695,24 +729,6 @@ namespace Oxide.Plugins
                 return false;
 
             return true;
-        }
-
-        private static Drone GetControlledDrone(ComputerStation computerStation) =>
-            computerStation.currentlyControllingEnt.Get(serverside: true) as Drone;
-
-        private static Drone GetControlledDrone(BasePlayer player, out ComputerStation computerStation)
-        {
-            computerStation = player.GetMounted() as ComputerStation;
-            if (computerStation == null)
-                return null;
-
-            return GetControlledDrone(computerStation);
-        }
-
-        private static Drone GetControlledDrone(BasePlayer player)
-        {
-            ComputerStation computerStation;
-            return GetControlledDrone(player, out computerStation);
         }
 
         private static StorageContainer GetDroneStorage(Drone drone)
@@ -808,7 +824,7 @@ namespace Oxide.Plugins
                 return false;
 
             basePlayer = player.Object as BasePlayer;
-            drone = GetControlledDrone(basePlayer);
+            drone = RCUtils.GetControlledEntity<Drone>(basePlayer);
             if (drone == null)
                 return false;
 
