@@ -116,11 +116,6 @@ namespace Oxide.Plugins
 
             _droneStorageTracker.UnsubscribeAll();
             _remoteViewerTracker.UnsubscribeAll();
-
-            if (_config.TipChance <= 0)
-            {
-                Unsubscribe(nameof(OnEntityBuilt));
-            }
         }
 
         private void Unload()
@@ -169,8 +164,6 @@ namespace Oxide.Plugins
 
                 OnBookmarkControlStarted(computerStation, player, string.Empty, drone);
             }
-
-            Subscribe(nameof(OnEntityBuilt));
         }
 
         private void OnEntityBuilt(Planner planner, GameObject go)
