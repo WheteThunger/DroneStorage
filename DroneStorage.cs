@@ -1067,7 +1067,7 @@ namespace Oxide.Plugins
             public int TipChance = 25;
 
             [JsonProperty("CapacityAmounts")]
-            public int[] CapacityAmounts = { 6, 12, 18, 24, 30, 36, 42 };
+            public int[] CapacityAmounts = { 6, 12, 18, 24, 30, 36, 42, 48 };
 
             [JsonProperty("DisallowedItems")]
             public string[] DisallowedItems = new string[0];
