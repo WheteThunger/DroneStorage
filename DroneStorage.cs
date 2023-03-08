@@ -70,12 +70,9 @@ namespace Oxide.Plugins
         private readonly object[] NoteInvTakeOneArguments = { StashItemId, -1 };
 
         private readonly StorageCapacityManager _storageCapacityManager;
-
-        // Subscribe to these hooks while there are storage drones.
-        private readonly DynamicHookSubscriber<StorageContainer> _droneStorageTracker;
-
-        // Subscribe to these hooks while drone storage is being remotely viewed.
-        private readonly DynamicHookSubscriber<ulong> _remoteViewerTracker;
+        private readonly DynamicHookHashSet<StorageContainer> _droneStorageTracker;
+        private readonly DynamicHookHashSet<ulong> _remoteStashViewerTracker;
+        private readonly HashSet<BasePlayer> _uiViewers = new HashSet<BasePlayer>();
 
         public DroneStorage()
         {
@@ -83,7 +80,7 @@ namespace Oxide.Plugins
 
             _storageCapacityManager = new StorageCapacityManager(this);
 
-            _droneStorageTracker = new DynamicHookSubscriber<StorageContainer>(this,
+            _droneStorageTracker = new DynamicHookHashSet<StorageContainer>(this,
                 nameof(OnEntityDeath),
                 nameof(OnEntityTakeDamage),
                 nameof(OnBookmarkControlStarted),
@@ -92,7 +89,7 @@ namespace Oxide.Plugins
                 nameof(OnItemDeployed)
             );
 
-            _remoteViewerTracker = new DynamicHookSubscriber<ulong>(this,
+            _remoteStashViewerTracker = new DynamicHookHashSet<ulong>(this,
                 nameof(CanMoveItem),
                 nameof(OnItemAction)
             );
@@ -114,13 +111,16 @@ namespace Oxide.Plugins
 
             _storageCapacityManager.Init();
 
-            _droneStorageTracker.UnsubscribeAll();
-            _remoteViewerTracker.UnsubscribeAll();
+            _droneStorageTracker.Unsubscribe();
+            _remoteStashViewerTracker.Unsubscribe();
         }
 
         private void Unload()
         {
-            UI.DestroyForAllPlayers();
+            foreach (var player in _uiViewers)
+            {
+                UI.DestroyForPlayer(player);
+            }
 
             foreach (var entity in BaseNetworkable.serverEntities)
             {
@@ -159,7 +159,7 @@ namespace Oxide.Plugins
 
                 if (storage.inventory != null && storage.inventory == player.inventory?.loot?.containers?.FirstOrDefault())
                 {
-                    _remoteViewerTracker.Add(player.userID);
+                    _remoteStashViewerTracker.Add(player.userID);
                 }
 
                 OnBookmarkControlStarted(computerStation, player, string.Empty, drone);
@@ -227,17 +227,29 @@ namespace Oxide.Plugins
 
         private void OnBookmarkControlStarted(ComputerStation computerStation, BasePlayer player, string bookmarkName, Drone drone)
         {
+            if (_uiViewers.Contains(player))
+                return;
+
             var storage = GetDroneStorage(drone);
             if (storage == null)
                 return;
 
             UI.CreateForPlayer(this, player, storage);
+            _uiViewers.Add(player);
         }
 
         private void OnBookmarkControlEnded(ComputerStation station, BasePlayer player, Drone drone)
         {
-            EndLooting(player);
+            if (!_uiViewers.Contains(player))
+                return;
+
             UI.DestroyForPlayer(player);
+            _uiViewers.Remove(player);
+
+            if (_remoteStashViewerTracker.Contains(player.userID))
+            {
+                EndLooting(player);
+            }
         }
 
         private object CanPickupEntity(BasePlayer player, Drone drone)
@@ -422,11 +434,11 @@ namespace Oxide.Plugins
             }
 
             storage.PlayerOpenLoot(basePlayer, storage.panelName, doPositionChecks: false);
-            _remoteViewerTracker.Add(basePlayer.userID);
+            _remoteStashViewerTracker.Add(basePlayer.userID);
 
             if (isLocked)
             {
-                baseLock.SetFlag(BasePlayer.Flags.Locked, true, recursive: false, networkupdate: false);
+                baseLock.SetFlag(BaseEntity.Flags.Locked, true, recursive: false, networkupdate: false);
             }
         }
 
@@ -449,6 +461,9 @@ namespace Oxide.Plugins
             Drone drone;
             StorageContainer storage;
             if (!TryGetControlledStorage(player, PermissionToggleLock, out basePlayer, out drone, out storage))
+                return;
+
+            if (!_uiViewers.Contains(basePlayer))
                 return;
 
             var baseLock = GetLock(storage);
@@ -616,14 +631,6 @@ namespace Oxide.Plugins
             {
                 CuiHelper.DestroyUi(player, Name);
             }
-
-            public static void DestroyForAllPlayers()
-            {
-                foreach (var player in BasePlayer.activePlayerList)
-                {
-                    DestroyForPlayer(player);
-                }
-            }
         }
 
         #endregion
@@ -703,18 +710,13 @@ namespace Oxide.Plugins
 
         private static StorageContainer GetDroneStorage(Drone drone)
         {
-            foreach (var child in drone.children)
-            {
-                var storage = child as StorageContainer;
-                if (storage != null && storage.PrefabName == StoragePrefab)
-                    return storage;
-            }
-
-            return null;
+            return drone.GetSlot(StorageSlot) as StorageContainer;
         }
 
-        private static BaseLock GetLock(StorageContainer storage) =>
-            storage.GetSlot(BaseEntity.Slot.Lock) as BaseLock;
+        private static BaseLock GetLock(StorageContainer storage)
+        {
+            return storage.GetSlot(BaseEntity.Slot.Lock) as BaseLock;
+        }
 
         private static void HitNotify(BaseEntity entity, HitInfo info)
         {
@@ -893,7 +895,7 @@ namespace Oxide.Plugins
             // Called via `entity.SendMessage("PlayerStoppedLooting", player)` in PlayerLoot.Clear().
             private void PlayerStoppedLooting(BasePlayer looter)
             {
-                _plugin._remoteViewerTracker.Remove(looter.userID);
+                _plugin._remoteStashViewerTracker.Remove(looter.userID);
             }
 
             private void OnDestroy()
@@ -909,51 +911,96 @@ namespace Oxide.Plugins
 
         #endregion
 
-        #region Dynamic Hook Subscriptions
+        #region Dynamic Hooks
 
-        private class DynamicHookSubscriber<T>
+        private class BaseHookCollection
         {
-            private DroneStorage _plugin;
-            private HashSet<T> _list = new HashSet<T>();
-            private string[] _hookNames;
+            public bool IsSubscribed { get; private set; } = true;
+            private readonly DroneStorage _plugin;
+            private readonly string[] _hookNames;
 
-            public DynamicHookSubscriber(DroneStorage plugin, params string[] hookNames)
+            public BaseHookCollection(DroneStorage plugin, params string[] hookNames)
             {
                 _plugin = plugin;
                 _hookNames = hookNames;
             }
 
-            public void Add(T item)
-            {
-                if (_list.Add(item) && _list.Count == 1)
-                {
-                    SubscribeAll();
-                }
-            }
-
-            public void Remove(T item)
-            {
-                if (_list.Remove(item) && _list.Count == 0)
-                {
-                    UnsubscribeAll();
-                }
-            }
-
-            public void SubscribeAll()
+            public void Subscribe()
             {
                 foreach (var hookName in _hookNames)
                 {
                     _plugin.Subscribe(hookName);
                 }
+
+                IsSubscribed = true;
             }
 
-            public void UnsubscribeAll()
+            public void Unsubscribe()
             {
                 foreach (var hookName in _hookNames)
                 {
                     _plugin.Unsubscribe(hookName);
                 }
+
+                IsSubscribed = false;
             }
+        }
+
+        private class ConditionalHookCollection : BaseHookCollection
+        {
+            private readonly Func<bool> _shouldSubscribe;
+
+            public ConditionalHookCollection(DroneStorage plugin, Func<bool> shouldSubscribe, params string[] hookNames) : base(plugin, hookNames)
+            {
+                _shouldSubscribe = shouldSubscribe;
+            }
+
+            public void Refresh()
+            {
+                if (_shouldSubscribe())
+                {
+                    if (!IsSubscribed)
+                    {
+                        Subscribe();
+                    }
+                }
+                else if (IsSubscribed)
+                {
+                    Unsubscribe();
+                }
+            }
+        }
+
+        private class DynamicHookHashSet<T> : HashSet<T>
+        {
+            private readonly ConditionalHookCollection _hookCollection;
+
+            public DynamicHookHashSet(DroneStorage plugin, params string[] hookNames)
+            {
+                _hookCollection = new ConditionalHookCollection(plugin, () => Count > 0, hookNames);
+            }
+
+            public new bool Add(T item)
+            {
+                var result = base.Add(item);
+                if (result)
+                {
+                    _hookCollection.Refresh();
+                }
+                return result;
+            }
+
+            public new bool Remove(T item)
+            {
+                var result = base.Remove(item);
+                if (result)
+                {
+                    _hookCollection.Refresh();
+                }
+                return result;
+            }
+
+            public void Unsubscribe() => _hookCollection.Unsubscribe();
         }
 
         #endregion
