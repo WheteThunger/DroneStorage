@@ -18,10 +18,9 @@ namespace Oxide.Plugins
         #region Fields
 
         [PluginReference]
-        private Plugin DroneSettings;
+        private readonly Plugin DroneSettings;
 
-        private static DroneStorage _instance;
-        private static Configuration _config;
+        private Configuration _config;
 
         private const string PermissionDeploy = "dronestorage.deploy";
         private const string PermissionDeployFree = "dronestorage.deploy.free";
@@ -54,10 +53,13 @@ namespace Oxide.Plugins
         private static readonly Vector3 StorageDropForwardLocation = new Vector3(0, 0, 0.7f);
         private static readonly Quaternion StorageDropRotation = Quaternion.Euler(90, 0, 0);
 
-        private Func<Item, int, bool> StashItemFilter = CanStashAcceptItem;
+        private readonly object True = true;
+        private readonly object False = false;
 
-        private Dictionary<string, object> _removeInfo = new Dictionary<string, object>();
-        private Dictionary<string, object> _refundInfo = new Dictionary<string, object>
+        private readonly Func<Item, int, bool> StashItemFilter;
+
+        private readonly Dictionary<string, object> _removeInfo = new Dictionary<string, object>();
+        private readonly Dictionary<string, object> _refundInfo = new Dictionary<string, object>
         {
             ["stash.small"] = new Dictionary<string, object>
             {
@@ -65,21 +67,36 @@ namespace Oxide.Plugins
             },
         };
 
+        private readonly object[] NoteInvTakeOneArguments = { StashItemId, -1 };
+
+        private readonly StorageCapacityManager _storageCapacityManager;
+
         // Subscribe to these hooks while there are storage drones.
-        private DynamicHookSubscriber<uint> _droneStorageTracker = new DynamicHookSubscriber<uint>(
-            nameof(OnEntityDeath),
-            nameof(OnEntityTakeDamage),
-            nameof(OnBookmarkControlStarted),
-            nameof(OnBookmarkControlEnded),
-            nameof(CanPickupEntity),
-            nameof(OnItemDeployed)
-        );
+        private readonly DynamicHookSubscriber<StorageContainer> _droneStorageTracker;
 
         // Subscribe to these hooks while drone storage is being remotely viewed.
-        private DynamicHookSubscriber<ulong> _remoteViewerTracker = new DynamicHookSubscriber<ulong>(
-            nameof(CanMoveItem),
-            nameof(OnItemAction)
-        );
+        private readonly DynamicHookSubscriber<ulong> _remoteViewerTracker;
+
+        public DroneStorage()
+        {
+            StashItemFilter = CanStashAcceptItem;
+
+            _storageCapacityManager = new StorageCapacityManager(this);
+
+            _droneStorageTracker = new DynamicHookSubscriber<StorageContainer>(this,
+                nameof(OnEntityDeath),
+                nameof(OnEntityTakeDamage),
+                nameof(OnBookmarkControlStarted),
+                nameof(OnBookmarkControlEnded),
+                nameof(CanPickupEntity),
+                nameof(OnItemDeployed)
+            );
+
+            _remoteViewerTracker = new DynamicHookSubscriber<ulong>(this,
+                nameof(CanMoveItem),
+                nameof(OnItemAction)
+            );
+        }
 
         #endregion
 
@@ -87,8 +104,6 @@ namespace Oxide.Plugins
 
         private void Init()
         {
-            _instance = this;
-
             permission.RegisterPermission(PermissionDeploy, this);
             permission.RegisterPermission(PermissionDeployFree, this);
             permission.RegisterPermission(PermissionAutoDeploy, this);
@@ -97,10 +112,7 @@ namespace Oxide.Plugins
             permission.RegisterPermission(PermissionDropItems, this);
             permission.RegisterPermission(PermissionToggleLock, this);
 
-            foreach (var capacityAmount in _config.CapacityAmounts)
-            {
-                permission.RegisterPermission(GetCapacityPermission(capacityAmount), this);
-            }
+            _storageCapacityManager.Init();
 
             _droneStorageTracker.UnsubscribeAll();
             _remoteViewerTracker.UnsubscribeAll();
@@ -127,17 +139,13 @@ namespace Oxide.Plugins
 
                 DroneStorageComponent.RemoveFromStorage(stash);
             }
-
-            _instance = null;
-            _config = null;
         }
 
         private void OnServerInitialized()
         {
-            foreach (var entity in BaseNetworkable.serverEntities)
+            foreach (var drone in BaseNetworkable.serverEntities.OfType<Drone>().ToArray())
             {
-                var drone = entity as Drone;
-                if (drone == null || !IsDroneEligible(drone))
+                if (!IsDroneEligible(drone))
                     continue;
 
                 RefreshStorage(drone);
@@ -179,25 +187,26 @@ namespace Oxide.Plugins
                 return;
 
             var drone2 = drone;
+            var player2 = player;
 
             NextTick(() =>
             {
                 // Delay this check to allow time for other plugins to deploy an entity to this slot.
-                if (drone2 == null || player == null || drone2.GetSlot(StorageSlot) != null)
+                if (drone2 == null || player2 == null || drone2.GetSlot(StorageSlot) != null)
                     return;
 
-                var capacity = GetPlayerAllowedCapacity(drone2.OwnerID);
+                var capacity = _storageCapacityManager.DetermineCapacityForUser(drone2.OwnerID);
                 if (capacity <= 0)
                     return;
 
-                if (permission.UserHasPermission(player.UserIDString, PermissionAutoDeploy))
+                if (permission.UserHasPermission(player2.UserIDString, PermissionAutoDeploy))
                 {
                     TryDeployStorage(drone2, capacity);
                 }
-                else if (permission.UserHasPermission(player.UserIDString, PermissionDeploy)
+                else if (permission.UserHasPermission(player2.UserIDString, PermissionDeploy)
                     && UnityEngine.Random.Range(0, 100) < _config.TipChance)
                 {
-                    ChatMessage(player, Lang.TipDeployCommand);
+                    ChatMessage(player2, Lang.TipDeployCommand);
                 }
             });
         }
@@ -211,7 +220,7 @@ namespace Oxide.Plugins
             DropItems(drone, storage);
         }
 
-        private bool? OnEntityTakeDamage(StorageContainer storage, HitInfo info)
+        private object OnEntityTakeDamage(StorageContainer storage, HitInfo info)
         {
             Drone drone;
             if (!IsDroneStorage(storage, out drone))
@@ -220,7 +229,7 @@ namespace Oxide.Plugins
             drone.Hurt(info);
             HitNotify(drone, info);
 
-            return true;
+            return True;
         }
 
         private void OnBookmarkControlStarted(ComputerStation computerStation, BasePlayer player, string bookmarkName, Drone drone)
@@ -229,7 +238,7 @@ namespace Oxide.Plugins
             if (storage == null)
                 return;
 
-            UI.CreateForPlayer(player, storage);
+            UI.CreateForPlayer(this, player, storage);
         }
 
         private void OnBookmarkControlEnded(ComputerStation station, BasePlayer player, Drone drone)
@@ -238,13 +247,13 @@ namespace Oxide.Plugins
             UI.DestroyForPlayer(player);
         }
 
-        private bool? CanPickupEntity(BasePlayer player, Drone drone)
+        private object CanPickupEntity(BasePlayer player, Drone drone)
         {
             if (CanPickupInternal(player, drone))
                 return null;
 
             ChatMessage(player, Lang.ErrorCannotPickupDroneWithItems);
-            return false;
+            return False;
         }
 
         private void OnItemDeployed(Deployer deployer, StorageContainer storage, BaseLock baseLock)
@@ -258,7 +267,7 @@ namespace Oxide.Plugins
         }
 
         // Prevent the drone controller from moving items while remotely viewing a drone stash.
-        private bool? CanMoveItem(Item item, PlayerInventory playerInventory)
+        private object CanMoveItem(Item item, PlayerInventory playerInventory)
         {
             if (item.parent == null)
                 return null;
@@ -274,13 +283,13 @@ namespace Oxide.Plugins
             // For simplicity, block all item moves while the player is looting a drone stash.
             var storage = playerInventory.loot.entitySource as StorageContainer;
             if (storage != null && IsDroneStorage(storage))
-                return false;
+                return False;
 
             return null;
         }
 
         // Prevent the drone controller from dropping items (or any item action) while remotely viewing a drone stash.
-        private bool? OnItemAction(Item item, string text, BasePlayer player)
+        private object OnItemAction(Item item, string text, BasePlayer player)
         {
             var drone = GetControlledDrone(player);
             if (drone == null)
@@ -288,7 +297,7 @@ namespace Oxide.Plugins
 
             var storage = GetDroneStorage(drone);
             if (storage != null && storage == player.inventory.loot.entitySource)
-                return false;
+                return False;
 
             return null;
         }
@@ -358,7 +367,7 @@ namespace Oxide.Plugins
                 return;
             }
 
-            var allowedCapacity = GetPlayerAllowedCapacity(basePlayer.userID);
+            var allowedCapacity = _storageCapacityManager.DetermineCapacityForUser(basePlayer.userID);
             if (allowedCapacity <= 0)
             {
                 ReplyToPlayer(player, Lang.ErrorNoPermission);
@@ -391,7 +400,7 @@ namespace Oxide.Plugins
             else if (!isFree)
             {
                 basePlayer.inventory.Take(null, StashItemId, 1);
-                basePlayer.Command("note.inv", StashItemId, -1);
+                basePlayer.Command("note.inv", NoteInvTakeOneArguments);
             }
         }
 
@@ -456,7 +465,7 @@ namespace Oxide.Plugins
             var wasLocked = baseLock.IsLocked();
             baseLock.SetFlag(BaseEntity.Flags.Locked, !wasLocked);
             Effect.server.Run(wasLocked ? UnlockEffectPrefab : LockEffectPrefab, baseLock, 0, Vector3.zero, Vector3.zero);
-            UI.CreateForPlayer(basePlayer, storage);
+            UI.CreateForPlayer(this, basePlayer, storage);
         }
 
         #endregion
@@ -467,17 +476,15 @@ namespace Oxide.Plugins
         {
             private const string Name = "DroneStorage";
 
-            private static UISettings _uiSettings => _config.UISettings;
-            private static UIButtons _buttonSettings => _uiSettings.Buttons;
-
-            private static float GetButtonOffsetX(int index, int totalButtons)
+            private static float GetButtonOffsetX(DroneStorage plugin, int index, int totalButtons)
             {
-                var panelWidth = _buttonSettings.Width * totalButtons + _buttonSettings.Spacing * (totalButtons - 1);
-                var offsetXMin = -panelWidth / 2 + (_buttonSettings.Width + _buttonSettings.Spacing) * index;
+                var buttonSettings = plugin._config.UISettings.Buttons;
+                var panelWidth = buttonSettings.Width * totalButtons + buttonSettings.Spacing * (totalButtons - 1);
+                var offsetXMin = -panelWidth / 2 + (buttonSettings.Width + buttonSettings.Spacing) * index;
                 return offsetXMin;
             }
 
-            public static void CreateForPlayer(BasePlayer player, StorageContainer storage)
+            public static void CreateForPlayer(DroneStorage plugin, BasePlayer player, StorageContainer storage)
             {
                 var baseLock = GetLock(storage);
 
@@ -493,53 +500,56 @@ namespace Oxide.Plugins
                 if (totalButtons == 0)
                     return;
 
-                DestroyForPlayer(player);
+                var config = plugin._config;
 
                 var cuiElements = new CuiElementContainer
                 {
+                    new CuiElement
                     {
-                        new CuiPanel
+                        Parent = "Overlay",
+                        Name = Name,
+                        DestroyUi = Name,
+                        Components =
                         {
-                            RectTransform =
+                            new CuiRectTransformComponent
                             {
-                                AnchorMin = _config.UISettings.AnchorMin,
-                                AnchorMax = _config.UISettings.AnchorMax,
-                                OffsetMin = _config.UISettings.OffsetMin,
-                                OffsetMax = _config.UISettings.OffsetMax
-                            }
-                        },
-                        "Overlay",
-                        Name
+                                AnchorMin = config.UISettings.AnchorMin,
+                                AnchorMax = config.UISettings.AnchorMax,
+                                OffsetMin = config.UISettings.OffsetMin,
+                                OffsetMax = config.UISettings.OffsetMax,
+                            },
+                        }
                     }
                 };
 
                 var currentButtonIndex = 0;
+                var buttonSettings = config.UISettings.Buttons;
 
                 if (showViewItemsButton)
                 {
-                    var offsetXMin = GetButtonOffsetX(currentButtonIndex++, totalButtons);
+                    var offsetXMin = GetButtonOffsetX(plugin, currentButtonIndex++, totalButtons);
 
                     cuiElements.Add(
                         new CuiButton
                         {
                             Text =
                             {
-                                Text = _instance.GetMessage(player.UserIDString, Lang.UIButtonViewItems),
+                                Text = plugin.GetMessage(player.UserIDString, Lang.UIButtonViewItems),
                                 Align = TextAnchor.MiddleCenter,
-                                Color = _buttonSettings.ViewButtonTextColor,
-                                FontSize = _buttonSettings.TextSize
+                                Color = buttonSettings.ViewButtonTextColor,
+                                FontSize = buttonSettings.TextSize
                             },
                             Button =
                             {
-                                Color = _buttonSettings.ViewButtonColor,
+                                Color = buttonSettings.ViewButtonColor,
                                 Command = "dronestorage.ui.viewitems",
                             },
                             RectTransform =
                             {
                                 AnchorMin = "0 0",
                                 AnchorMax = "0 0",
-                                OffsetMin = $"{offsetXMin} 0",
-                                OffsetMax = $"{offsetXMin + _buttonSettings.Width} {_buttonSettings.Height}"
+                                OffsetMin = $"{offsetXMin.ToString()} 0",
+                                OffsetMax = $"{(offsetXMin + buttonSettings.Width).ToString()} {buttonSettings.Height.ToString()}"
                             }
                         },
                         Name
@@ -548,29 +558,29 @@ namespace Oxide.Plugins
 
                 if (showDropItemsButton)
                 {
-                    var offsetXMin = GetButtonOffsetX(currentButtonIndex++, totalButtons);
+                    var offsetXMin = GetButtonOffsetX(plugin, currentButtonIndex++, totalButtons);
 
                     cuiElements.Add(
                         new CuiButton
                         {
                             Text =
                             {
-                                Text = _instance.GetMessage(player.UserIDString, Lang.UIButtonDropItems),
+                                Text = plugin.GetMessage(player.UserIDString, Lang.UIButtonDropItems),
                                 Align = TextAnchor.MiddleCenter,
-                                Color = _buttonSettings.DropButtonTextColor,
-                                FontSize = _buttonSettings.TextSize
+                                Color = buttonSettings.DropButtonTextColor,
+                                FontSize = buttonSettings.TextSize
                             },
                             Button =
                             {
-                                Color = _buttonSettings.DropButtonColor,
+                                Color = buttonSettings.DropButtonColor,
                                 Command = "dronestorage.ui.dropitems",
                             },
                             RectTransform =
                             {
                                 AnchorMin = "0 0",
                                 AnchorMax = "0 0",
-                                OffsetMin = $"{offsetXMin} 0",
-                                OffsetMax = $"{offsetXMin + _buttonSettings.Width} {_buttonSettings.Height}"
+                                OffsetMin = $"{offsetXMin.ToString()} 0",
+                                OffsetMax = $"{(offsetXMin + buttonSettings.Width).ToString()} {buttonSettings.Height.ToString()}"
                             }
                         },
                         Name
@@ -580,33 +590,30 @@ namespace Oxide.Plugins
                 if (showToggleLockButton)
                 {
                     var isLocked = baseLock.IsLocked();
-                    var offsetXMin = GetButtonOffsetX(currentButtonIndex++, totalButtons);
+                    var offsetXMin = GetButtonOffsetX(plugin, currentButtonIndex++, totalButtons);
 
-                    cuiElements.Add(
-                        new CuiButton
+                    cuiElements.Add(new CuiButton
+                    {
+                        Text =
                         {
-                            Text =
-                            {
-                                Text = _instance.GetMessage(player.UserIDString, isLocked ? Lang.UIButtonUnlockStorage : Lang.UIButtonLockStorage),
-                                Align = TextAnchor.MiddleCenter,
-                                Color = isLocked ? _buttonSettings.UnlockButtonTextColor : _buttonSettings.LockButtonTextColor,
-                                FontSize = _buttonSettings.TextSize
-                            },
-                            Button =
-                            {
-                                Color = isLocked ? _buttonSettings.UnlockButtonColor : _buttonSettings.LockButtonColor,
-                                Command = "dronestorage.ui.togglelock",
-                            },
-                            RectTransform =
-                            {
-                                AnchorMin = "0 0",
-                                AnchorMax = "0 0",
-                                OffsetMin = $"{offsetXMin} 0",
-                                OffsetMax = $"{offsetXMin + _buttonSettings.Width} {_buttonSettings.Height}"
-                            }
+                            Text = plugin.GetMessage(player.UserIDString, isLocked ? Lang.UIButtonUnlockStorage : Lang.UIButtonLockStorage),
+                            Align = TextAnchor.MiddleCenter,
+                            Color = isLocked ? buttonSettings.UnlockButtonTextColor : buttonSettings.LockButtonTextColor,
+                            FontSize = buttonSettings.TextSize
                         },
-                        Name
-                    );
+                        Button =
+                        {
+                            Color = isLocked ? buttonSettings.UnlockButtonColor : buttonSettings.LockButtonColor,
+                            Command = "dronestorage.ui.togglelock",
+                        },
+                        RectTransform =
+                        {
+                            AnchorMin = "0 0",
+                            AnchorMax = "0 0",
+                            OffsetMin = $"{offsetXMin.ToString()} 0",
+                            OffsetMax = $"{(offsetXMin + buttonSettings.Width).ToString()} {buttonSettings.Height.ToString()}"
+                        }
+                    }, Name);
                 }
 
                 CuiHelper.AddUi(player, cuiElements);
@@ -620,7 +627,9 @@ namespace Oxide.Plugins
             public static void DestroyForAllPlayers()
             {
                 foreach (var player in BasePlayer.activePlayerList)
+                {
                     DestroyForPlayer(player);
+                }
             }
         }
 
@@ -645,11 +654,10 @@ namespace Oxide.Plugins
             DroneSettings?.Call("API_RefreshDroneProfile", drone);
         }
 
-        private static string GetCapacityPermission(int capacity) =>
-            $"{PermissionCapacityPrefix}.{capacity}";
-
-        private static bool IsDroneEligible(Drone drone) =>
-            !(drone is DeliveryDrone);
+        private static bool IsDroneEligible(Drone drone)
+        {
+            return !(drone is DeliveryDrone);
+        }
 
         private static bool IsDroneStorage(StorageContainer storage, out Drone drone)
         {
@@ -774,7 +782,7 @@ namespace Oxide.Plugins
             player.ClientRPCPlayer(null, player, "OnRespawnInformation");
         }
 
-        private static bool ShouldStashAcceptItem(Item item)
+        private bool CanStashAcceptItem(Item item, int position)
         {
             if (_config.DisallowedItems != null
                 && _config.DisallowedItems.Contains(item.info.shortname))
@@ -786,15 +794,6 @@ namespace Oxide.Plugins
                 return false;
 
             return true;
-        }
-
-        private static bool CanStashAcceptItem(Item item, int amount)
-        {
-            // Explicitly track hook time so server owners can be informed of the cost.
-            _instance?.TrackStart();
-            var result = ShouldStashAcceptItem(item);
-            _instance?.TrackEnd();
-            return result;
         }
 
         private bool TryGetControlledStorage(IPlayer player, string perm, out BasePlayer basePlayer, out Drone drone, out StorageContainer storage)
@@ -833,7 +832,7 @@ namespace Oxide.Plugins
             storage.inventory.capacity = capacity;
             storage.panelName = ResizableLootPanelName;
 
-            DroneStorageComponent.AddToStorage(storage);
+            DroneStorageComponent.AddToStorage(this, drone, storage);
             RefreshDroneSettingsProfile(drone);
         }
 
@@ -870,7 +869,7 @@ namespace Oxide.Plugins
                 return;
 
             // Possibly increase capacity, but do not decrease it because that could hide items.
-            var capacity = Math.Max(storage.inventory.capacity, GetPlayerAllowedCapacity(drone.OwnerID));
+            var capacity = Math.Max(storage.inventory.capacity, _storageCapacityManager.DetermineCapacityForUser(drone.OwnerID));
             SetupDroneStorage(drone, storage, capacity);
         }
 
@@ -880,43 +879,38 @@ namespace Oxide.Plugins
 
         private class DroneStorageComponent : MonoBehaviour
         {
-            public static void AddToStorage(StorageContainer storageContainer) =>
-                storageContainer.gameObject.AddComponent<DroneStorageComponent>();
-
-            public static void RemoveFromStorage(StorageContainer storageContainer) =>
-                DestroyImmediate(storageContainer.GetComponent<DroneStorageComponent>());
-
-            private Drone _drone;
-            private uint _netId;
-
-            private void Awake()
+            public static void AddToStorage(DroneStorage plugin, Drone drone, StorageContainer storageContainer)
             {
-                var storageContainer = GetComponent<StorageContainer>();
-                if (storageContainer == null)
-                    return;
-
-                _drone = storageContainer.GetParentEntity() as Drone;
-                _netId = storageContainer.net.ID;
-
-                _instance._droneStorageTracker.Add(storageContainer.net.ID);
+                var component = storageContainer.gameObject.AddComponent<DroneStorageComponent>();
+                component._plugin = plugin;
+                component._drone = drone;
+                component._storage = storageContainer;
+                plugin._droneStorageTracker.Add(storageContainer);
             }
+
+            public static void RemoveFromStorage(StorageContainer storageContainer)
+            {
+                DestroyImmediate(storageContainer.GetComponent<DroneStorageComponent>());
+            }
+
+            private DroneStorage _plugin;
+            private Drone _drone;
+            private StorageContainer _storage;
 
             // Called via `entity.SendMessage("PlayerStoppedLooting", player)` in PlayerLoot.Clear().
             private void PlayerStoppedLooting(BasePlayer looter)
             {
-                _instance?.TrackStart();
-                _instance?._remoteViewerTracker.Remove(looter.userID);
-                _instance?.TrackEnd();
+                _plugin._remoteViewerTracker.Remove(looter.userID);
             }
 
             private void OnDestroy()
             {
                 if (_drone != null && !_drone.IsDestroyed)
                 {
-                    _drone.Invoke(() => _instance?.RefreshDroneSettingsProfile(_drone), 0);
+                    _drone.Invoke(() => _plugin.RefreshDroneSettingsProfile(_drone), 0);
                 }
 
-                _instance?._droneStorageTracker.Remove(_netId);
+                _plugin._droneStorageTracker.Remove(_storage);
             }
         }
 
@@ -926,11 +920,13 @@ namespace Oxide.Plugins
 
         private class DynamicHookSubscriber<T>
         {
+            private DroneStorage _plugin;
             private HashSet<T> _list = new HashSet<T>();
             private string[] _hookNames;
 
-            public DynamicHookSubscriber(params string[] hookNames)
+            public DynamicHookSubscriber(DroneStorage plugin, params string[] hookNames)
             {
+                _plugin = plugin;
                 _hookNames = hookNames;
             }
 
@@ -954,7 +950,7 @@ namespace Oxide.Plugins
             {
                 foreach (var hookName in _hookNames)
                 {
-                    _instance.Subscribe(hookName);
+                    _plugin.Subscribe(hookName);
                 }
             }
 
@@ -962,7 +958,7 @@ namespace Oxide.Plugins
             {
                 foreach (var hookName in _hookNames)
                 {
-                    _instance.Unsubscribe(hookName);
+                    _plugin.Unsubscribe(hookName);
                 }
             }
         }
@@ -971,27 +967,58 @@ namespace Oxide.Plugins
 
         #region Configuration
 
-        private int GetPlayerAllowedCapacity(ulong userId)
+        private class StorageCapacityManager
         {
-            var capacityAmounts = _config.CapacityAmounts;
-
-            if (userId == 0 || capacityAmounts == null || capacityAmounts.Length == 0)
-                return 0;
-
-            var userIdString = userId.ToString();
-            var largestAllowedCapacity = 0;
-
-            for (var i = capacityAmounts.Length - 1; i >= 0; i--)
+            private class StorageSize
             {
-                var capacity = capacityAmounts[i];
-                if (capacity > largestAllowedCapacity
-                    && permission.UserHasPermission(userIdString, GetCapacityPermission(capacity)))
+                public readonly int Capacity;
+                public readonly string Permission;
+
+                public StorageSize(int capacity, string permission)
                 {
-                    largestAllowedCapacity = capacity;
+                    Capacity = capacity;
+                    Permission = permission;
                 }
             }
 
-            return largestAllowedCapacity;
+            private readonly DroneStorage _plugin;
+            private StorageSize[] _sortedStorageSizes;
+
+            public StorageCapacityManager(DroneStorage plugin)
+            {
+                _plugin = plugin;
+            }
+
+            public void Init()
+            {
+                var storageSizeList = new List<StorageSize>();
+
+                foreach (var capacity in new HashSet<int>(_plugin._config.CapacityAmounts).OrderBy(capacity => capacity))
+                {
+                    var storageSize = new StorageSize(capacity, $"{PermissionCapacityPrefix}.{capacity.ToString()}");
+                    _plugin.permission.RegisterPermission(storageSize.Permission, _plugin);
+                    storageSizeList.Add(storageSize);
+                }
+
+                _sortedStorageSizes = storageSizeList.ToArray();
+            }
+
+            public int DetermineCapacityForUser(ulong userId)
+            {
+                if (userId == 0)
+                    return 0;
+
+                var userIdString = userId.ToString();
+
+                for (var i = _sortedStorageSizes.Length - 1; i >= 0; i--)
+                {
+                    var storageSize = _sortedStorageSizes[i];
+                    if (_plugin.permission.UserHasPermission(userIdString, storageSize.Permission))
+                        return storageSize.Capacity;
+                }
+
+                return 0;
+            }
         }
 
         private class Configuration : BaseConfiguration
