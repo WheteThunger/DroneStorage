@@ -154,7 +154,7 @@ Drone attachments:
 #### OnDroneStorageDeploy
 
 ```csharp
-bool? OnDroneStorageDeploy(Drone drone, BasePlayer optionalDeployer)
+object OnDroneStorageDeploy(Drone drone, BasePlayer optionalDeployer)
 ```
 
 - Called when a stash container is about to be deployed onto a drone
@@ -177,7 +177,7 @@ Note: The `BasePlayer` argument will be `null` if the container was deployed aut
 #### OnDroneStorageDrop
 
 ```csharp
-bool? OnDroneStorageDrop(Drone drone, StorageContainer stash, BasePlayer optionalPilot)
+object OnDroneStorageDrop(Drone drone, StorageContainer stash, BasePlayer optionalPilot)
 ```
 
 - Called when a drone's stash contents are about to be dropped
