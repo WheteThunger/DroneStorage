@@ -61,6 +61,7 @@ Default configuration:
 ```json
 {
   "TipChance": 25,
+  "AssignStorageOwnership": true,
   "CapacityAmounts": [
     6,
     12,
@@ -97,6 +98,7 @@ Default configuration:
 ```
 
 - `TipChance` (`0` - `100`) -- Chance that a tip message will be shown to a player when they deploy a drone, informing them that they can use the `/dronestash` command. Only applies to players with the `dronestorage.deploy` permission who do not have the `dronestorage.autodeploy` permission.
+- `AssignStorageOwnership` (`true` or `false`) -- Determines whether deploying a stash onto a drone will set you as the stash owner. This is relevant if you use the Prevent Looting plugin because it will prevent other players from opening the stash if ownership is set. Note: Regardless of what you set this option to, the computer station UI buttons to view and drop the stash contents are not affected by stash ownership.
 - `CapacityAmounts` -- List of numbers used to generate permissions of the format `dronestorage.capacity.<amount>` (see permissions section).
 - `DisallowedItems` -- List of item short names (like `"autoturret"`) to disallow in drone stashes.
 - `DisallowedSkins` -- List of item skin ids (numbers) to disallow in drone stashes.

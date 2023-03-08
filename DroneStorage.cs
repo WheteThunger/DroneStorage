@@ -433,8 +433,15 @@ namespace Oxide.Plugins
                 baseLock.SetFlag(BaseEntity.Flags.Locked, false, recursive: false, networkupdate: false);
             }
 
-            storage.PlayerOpenLoot(basePlayer, storage.panelName, doPositionChecks: false);
-            _remoteStashViewerTracker.Add(basePlayer.userID);
+            // Temporarily remove the stash owner, to bypass plugins such as PreventLooting.
+            var ownerId = storage.OwnerID;
+            storage.OwnerID = 0;
+            if (storage.PlayerOpenLoot(basePlayer, storage.panelName, doPositionChecks: false))
+            {
+                _remoteStashViewerTracker.Add(basePlayer.userID);
+            }
+
+            storage.OwnerID = ownerId;
 
             if (isLocked)
             {
@@ -809,17 +816,21 @@ namespace Oxide.Plugins
             return storage != null;
         }
 
-        private bool IsStorageLockable(StorageContainer storage) =>
-            storage.OwnerID != 0
-            && permission.UserHasPermission(storage.OwnerID.ToString(), PermissionLockable);
-
         private void SetupDroneStorage(Drone drone, StorageContainer storage, int capacity)
         {
-            if (storage.OwnerID == 0)
+            if (!_config.AssignStorageOwnership)
+            {
+                storage.OwnerID = 0;
+            }
+            else if (storage.OwnerID == 0)
+            {
                 storage.OwnerID = drone.OwnerID;
+            }
+
+            var storageOwnerId = _config.AssignStorageOwnership ? storage.OwnerID : drone.OwnerID;
+            storage.isLockable = storageOwnerId != 0 && permission.UserHasPermission(storageOwnerId.ToString(), PermissionLockable);
 
             storage.inventory.canAcceptItem = StashItemFilter;
-            storage.isLockable = IsStorageLockable(storage);
 
             // Damage will be processed by the drone.
             storage.baseProtection = null;
@@ -840,7 +851,11 @@ namespace Oxide.Plugins
             if (storage == null)
                 return null;
 
-            storage.OwnerID = deployer?.userID ?? drone.OwnerID;
+            if (_config.AssignStorageOwnership)
+            {
+                storage.OwnerID = deployer?.userID ?? drone.OwnerID;
+            }
+
             storage.SetParent(drone);
             storage.Spawn();
 
@@ -1065,6 +1080,9 @@ namespace Oxide.Plugins
         {
             [JsonProperty("TipChance")]
             public int TipChance = 25;
+
+            [JsonProperty("AssignStorageOwnership")]
+            public bool AssignStorageOwnership = true;
 
             [JsonProperty("CapacityAmounts")]
             public int[] CapacityAmounts = { 6, 12, 18, 24, 30, 36, 42, 48 };
