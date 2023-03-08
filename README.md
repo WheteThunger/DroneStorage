@@ -1,9 +1,9 @@
 ## Features
 
-- Allows players to deploy a small stash to RC drones
+- Allows players to deploy a small stash onto RC drones
 - Allows the stash to receive a lock if its owner has permission
 - Allows configuring stash capacity based on permissions of the drone owner
-- Allows drone controllers to remotely view the stash contents, drop them at the drone position, and lock or unlock the stash
+- Allows drone controllers to remotely view the stash contents, drop them at the drone position, and lock or unlock the stash using UI buttons at the computer station
 - Redirects damage from the stash to the drone
 - Drops the stash contents when the drone is destroyed
 - Allows removing the stash with the Remover Tool plugin
@@ -19,7 +19,6 @@ Since the March 2023 Rust update, drones now sway in the wind, but attached enti
 - `dronestorage.deploy` -- Allows the player to deploy a stash onto a drone using the `dronestash` command.
 - `dronestorage.deploy.free` -- Allows using the `dronestash` command for free (no stash item required).
 - `dronestorage.autodeploy` -- Drones deployed by players with this permission will automatically have a stash, free of charge.
-  - Note: Reloading the plugin will automatically add stashes to existing drones owned by players with this permission.
   - Not recommended if you want to allow players to deploy other attachments such as auto turrets since they are incompatible.
 - `dronestorage.lockable` -- Drone stashes deployed by players with this permission may have a code lock or key lock deployed to them.
 
@@ -27,13 +26,13 @@ Note: In order for manual or automatic deployment to work, the player will need 
 
 ### UI Permissions
 
-Players with the following permissions will see UI buttons while controlling a drone.
+Players with the following permissions will see UI buttons while remotely controlling a drone at a computer station.
 
-- `dronestorage.viewitems` -- Allows viewing the stash contents.
-- `dronestorage.dropitems` -- Allows dropping the stash contents at the drone position.
-- `dronestorage.togglelock` -- Allows locking and unlocking the stash, if it has an attached lock.
+- `dronestorage.viewitems` -- Allows remotely viewing the stash contents.
+- `dronestorage.dropitems` -- Allows remotely dropping the stash contents at the drone position.
+- `dronestorage.togglelock` -- Allows remotely locking and unlocking the stash, if it has an attached lock.
 
-Note: The drone controller is prevented from remotely moving items into or out of the stash container.
+Note: The drone controller is prevented from remotely interacting with the items in the stash.
 
 ### Capacity permissions
 
