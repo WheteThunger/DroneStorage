@@ -179,7 +179,7 @@ namespace Oxide.Plugins
                 return;
 
             var drone = go.ToBaseEntity() as Drone;
-            if (drone == null)
+            if (drone == null || !IsDroneEligible(drone))
                 return;
 
             var player = planner.GetOwnerPlayer();
@@ -656,7 +656,7 @@ namespace Oxide.Plugins
 
         private static bool IsDroneEligible(Drone drone)
         {
-            return !(drone is DeliveryDrone);
+            return drone.skinID == 0 && !(drone is DeliveryDrone);
         }
 
         private static bool IsDroneStorage(StorageContainer storage, out Drone drone)
