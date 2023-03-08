@@ -928,16 +928,18 @@ namespace Oxide.Plugins
 
         #region Dynamic Hooks
 
-        private class BaseHookCollection
+        private class HookCollection
         {
             public bool IsSubscribed { get; private set; } = true;
             private readonly DroneStorage _plugin;
             private readonly string[] _hookNames;
+            private readonly Func<bool> _shouldSubscribe;
 
-            public BaseHookCollection(DroneStorage plugin, params string[] hookNames)
+            public HookCollection(DroneStorage plugin, Func<bool> shouldSubscribe, params string[] hookNames)
             {
                 _plugin = plugin;
                 _hookNames = hookNames;
+                _shouldSubscribe = shouldSubscribe;
             }
 
             public void Subscribe()
@@ -959,16 +961,6 @@ namespace Oxide.Plugins
 
                 IsSubscribed = false;
             }
-        }
-
-        private class ConditionalHookCollection : BaseHookCollection
-        {
-            private readonly Func<bool> _shouldSubscribe;
-
-            public ConditionalHookCollection(DroneStorage plugin, Func<bool> shouldSubscribe, params string[] hookNames) : base(plugin, hookNames)
-            {
-                _shouldSubscribe = shouldSubscribe;
-            }
 
             public void Refresh()
             {
@@ -988,11 +980,11 @@ namespace Oxide.Plugins
 
         private class DynamicHookHashSet<T> : HashSet<T>
         {
-            private readonly ConditionalHookCollection _hookCollection;
+            private readonly HookCollection _hookCollection;
 
             public DynamicHookHashSet(DroneStorage plugin, params string[] hookNames)
             {
-                _hookCollection = new ConditionalHookCollection(plugin, () => Count > 0, hookNames);
+                _hookCollection = new HookCollection(plugin, () => Count > 0, hookNames);
             }
 
             public new bool Add(T item)
