@@ -11,7 +11,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Drone Storage", "WhiteThunder", "1.3.0")]
+    [Info("Drone Storage", "WhiteThunder", "1.3.1")]
     [Description("Allows players to deploy a small stash to RC drones.")]
     internal class DroneStorage : CovalencePlugin
     {
@@ -395,7 +395,7 @@ namespace Oxide.Plugins
             }
 
             var isFree = player.HasPermission(PermissionDeployFree);
-            if (!isFree && basePlayer.inventory.FindItemID(StashItemId) == null)
+            if (!isFree && basePlayer.inventory.FindItemByItemID(StashItemId) == null)
             {
                 ReplyToPlayer(player, Lang.ErrorNoStashItem);
                 return;
