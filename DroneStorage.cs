@@ -11,7 +11,7 @@ using UnityEngine;
 
 namespace Oxide.Plugins
 {
-    [Info("Drone Storage", "WhiteThunder", "1.3.1")]
+    [Info("Drone Storage", "WhiteThunder", "1.3.2")]
     [Description("Allows players to deploy a small stash to RC drones.")]
     internal class DroneStorage : CovalencePlugin
     {
@@ -220,8 +220,6 @@ namespace Oxide.Plugins
                 return null;
 
             drone.Hurt(info);
-            HitNotify(drone, info);
-
             return True;
         }
 
@@ -739,26 +737,6 @@ namespace Oxide.Plugins
         private static BaseLock GetLock(StorageContainer storage)
         {
             return storage.GetSlot(BaseEntity.Slot.Lock) as BaseLock;
-        }
-
-        private static void HitNotify(BaseEntity entity, HitInfo info)
-        {
-            var player = info.Initiator as BasePlayer;
-            if (player == null)
-                return;
-
-            entity.ClientRPCPlayer(null, player, "HitNotify");
-        }
-
-        private static void RemoveProblemComponents(BaseEntity ent)
-        {
-            foreach (var meshCollider in ent.GetComponentsInChildren<MeshCollider>())
-            {
-                UnityEngine.Object.DestroyImmediate(meshCollider);
-            }
-
-            UnityEngine.Object.DestroyImmediate(ent.GetComponent<DestroyOnGroundMissing>());
-            UnityEngine.Object.DestroyImmediate(ent.GetComponent<GroundWatch>());
         }
 
         private static void DropItems(Drone drone, StorageContainer storage, BasePlayer pilot = null)
